@@ -1,0 +1,2 @@
+com.sanaa.common.autoconfigure.TenantAutoConfiguration
+com.sanaa.common.autoconfigure.JwtTenantFilterAutoConfiguration
