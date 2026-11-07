@@ -32,9 +32,15 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: auth-service
 
 sanaa:
+  auth:
+    refresh-cookie-secure: ${COOKIE_SECURE:true}
+    refresh-token-ttl: P7D
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:}

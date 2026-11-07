@@ -35,6 +35,22 @@ public class TenantLookupService {
                 .orElseThrow(TenantNotFoundException::new);
     }
 
+    /**
+     * Public registration is closed for reserved labels. The check runs before the lookup so a
+     * reserved slug returns the same 404 as an unknown tenant and never reveals whether the label
+     * exists.
+     */
+    @Transactional(readOnly = true)
+    public Tenant requireActiveForRegistration(String slug) {
+        String normalized = normalizeSlug(slug);
+        if (normalized == null || TenantSlugs.isReserved(normalized)) {
+            throw new TenantNotFoundException();
+        }
+        return tenantRepository.findBySlug(normalized)
+                .filter(tenant -> tenant.getStatus() == TenantStatus.ACTIVE)
+                .orElseThrow(TenantNotFoundException::new);
+    }
+
     public static String normalizeSlug(String slug) {
         return slug == null ? null : slug.trim().toLowerCase(Locale.ROOT);
     }

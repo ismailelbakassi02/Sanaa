@@ -1,0 +1,5 @@
+# Local development runs over plain HTTP, so the refresh cookie must not be Secure by default.
+# COOKIE_SECURE can still override this when the dev stack is placed behind TLS.
+sanaa:
+  auth:
+    refresh-cookie-secure: ${COOKIE_SECURE:false}

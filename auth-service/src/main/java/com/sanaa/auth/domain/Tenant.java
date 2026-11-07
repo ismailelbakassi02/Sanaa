@@ -91,4 +91,8 @@ public class Tenant {
     public void suspend() {
         this.status = TenantStatus.SUSPENDED;
     }
+
+    public void activate() {
+        this.status = TenantStatus.ACTIVE;
+    }
 }

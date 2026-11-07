@@ -11,10 +11,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * RFC 7807 responses for all controller errors. Unexpected exceptions are logged server-side and
@@ -50,6 +53,30 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException exception) {
         return problem(HttpStatus.BAD_REQUEST, "Bad Request", "Malformed request body.");
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Bad Request", "Malformed request parameter.");
+    }
+
+    /**
+     * Unknown paths fall through MVC to the static resource handler. Without this mapping the
+     * catch-all below would report a missing endpoint as a server error.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResource(NoResourceFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "Not Found", "Resource not found.");
+    }
+
+    /**
+     * Method security rejects a handler after dispatch has started, so the security filter's
+     * AccessDeniedHandler would not run. Without this mapping the generic handler below would turn
+     * a role mismatch into 500.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException exception) {
+        return problem(HttpStatus.FORBIDDEN, "Forbidden", "Access denied.");
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
