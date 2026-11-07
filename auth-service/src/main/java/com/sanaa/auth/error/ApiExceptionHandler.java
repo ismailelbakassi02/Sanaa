@@ -1,0 +1,74 @@
+package com.sanaa.auth.error;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import jakarta.validation.ConstraintViolationException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+/**
+ * RFC 7807 responses for all controller errors. Unexpected exceptions are logged server-side and
+ * returned as a generic problem without a stack trace or internal details.
+ */
+@RestControllerAdvice
+public class ApiExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    @ExceptionHandler(ApiException.class)
+    public ProblemDetail handleApiException(ApiException exception) {
+        return problem(exception.getStatus(), exception.getTitle(), exception.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ProblemDetail handleValidation(MethodArgumentNotValidException exception) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        for (FieldError fieldError : exception.getBindingResult().getFieldErrors()) {
+            errors.putIfAbsent(fieldError.getField(), fieldError.getDefaultMessage());
+        }
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Bad Request",
+                "Request validation failed.");
+        problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleConstraintViolation(ConstraintViolationException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Bad Request", "Request validation failed.");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Bad Request", "Malformed request body.");
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrity(DataIntegrityViolationException exception) {
+        // Registration converts the expected duplicate-email case itself. Anything reaching here is
+        // still a client conflict rather than a server error.
+        return problem(HttpStatus.CONFLICT, "Conflict", "The request conflicts with existing data.");
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleUnexpected(Exception exception) {
+        log.error("Unhandled request failure", exception);
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
+                "An unexpected error occurred.");
+    }
+
+    private static ProblemDetail problem(HttpStatus status, String title, String detail) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        problem.setTitle(title);
+        return problem;
+    }
+}

@@ -2,8 +2,29 @@ spring:
   application:
     name: auth-service
 
+  datasource:
+    url: ${AUTH_DB_URL:jdbc:mysql://localhost:3306/auth_db?useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${AUTH_DB_USER}
+    password: ${AUTH_DB_PASSWORD}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
 server:
   port: 8081
+  error:
+    include-message: never
+    include-stacktrace: never
 
 management:
   server:
@@ -11,4 +32,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info
+
+sanaa:
+  jwt:
+    private-key-path: ${JWT_PRIVATE_KEY_PATH:}
+    public-key-path: ${JWT_PUBLIC_KEY_PATH:}
+    issuer: ${JWT_ISSUER:sanaa-auth}
+    audience: ${JWT_AUDIENCE:sanaa-api}
+    access-token-ttl: PT15M
+  bootstrap:
+    enabled: ${PLATFORM_BOOTSTRAP_ENABLED:true}
+    tenant-slug: ${PLATFORM_TENANT_SLUG:platform}
+    tenant-name: ${PLATFORM_TENANT_NAME:Platform}
+    admin-email: ${PLATFORM_ADMIN_EMAIL:admin@platform.local}
+    admin-password: ${PLATFORM_ADMIN_PASSWORD:}
+    admin-name: ${PLATFORM_ADMIN_NAME:Platform Admin}
