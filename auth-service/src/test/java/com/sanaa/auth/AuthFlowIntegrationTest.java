@@ -27,6 +27,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -368,11 +369,13 @@ class AuthFlowIntegrationTest {
                 new Tenant(UUID.randomUUID().toString(), "platform", "Platform", TenantStatus.ACTIVE,
                         "#165DFF", null)));
 
-        String expectedBody = post("/api/auth/register", Map.of(
+        HttpResult unknown = post("/api/auth/register", Map.of(
                 "tenantSlug", "unknown-" + shortId(),
                 "email", "reserved-" + shortId() + "@example.com",
                 "password", PASSWORD,
-                "fullName", "Reserved User")).body();
+                "fullName", "Reserved User"));
+        assertThat(unknown.status()).isEqualTo(404);
+        String expectedBody = unknown.body();
 
         for (String slug : List.of("platform", "www", "api", "admin", "auth", "app", "static", "mail")) {
             HttpResult response = post("/api/auth/register", Map.of(
@@ -475,7 +478,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void reuseOfRotatedTokenRevokesTheNewTokenToo() throws Exception {
+    void reuseOfRotatedTokenRevokesEveryRefreshTokenOfTheUser() throws Exception {
         Tenant tenant = createTenant("Reuse Detection", "#165DFF", null);
         register(tenant.getSlug(), "reuse@example.com", "Reuse User");
 
@@ -484,11 +487,16 @@ class AuthFlowIntegrationTest {
         assertThat(refreshed.status()).isEqualTo(200);
         String secondCookie = refreshCookie(refreshed);
 
+        // A second login proves the revocation is per user, not only per rotated token chain.
+        String independentSession = refreshCookie(
+                login(tenant.getSlug(), "reuse@example.com", PASSWORD));
+
         assertThat(refresh(firstCookie).status()).isEqualTo(401);
         assertThat(refresh(secondCookie).status()).isEqualTo(401);
+        assertThat(refresh(independentSession).status()).isEqualTo(401);
     }
 
-    @Test
+    @RepeatedTest(20)
     void concurrentRefreshAllowsExactlyOneSuccess() throws Exception {
         Tenant tenant = createTenant("Concurrent Refresh", "#165DFF", null);
         register(tenant.getSlug(), "parallel@example.com", "Parallel User");
