@@ -1,11 +1,11 @@
-# Arco Design: Design System Guide for AI Agents
+# UI design reference: Arco Design
 
 Source repository: https://github.com/arco-design/arco-design
 Official site: https://arco.design
 Package: `@arco-design/web-react` (React) and `@arco-design/web-vue` (Vue)
 License: MIT
 
-This document is written to be handed to an AI coding or design agent. When an agent is asked to build UI, it should treat this file as the source of truth for visual language, tokens, component choice, and code conventions. Where this file and the official docs disagree, the official docs at https://arco.design win. Token values below are the library defaults; a project may override them through a custom theme.
+This document describes the visual language, tokens, component choice and code conventions used with Arco Design. Where this document and the official docs disagree, the official docs at https://arco.design win. Token values below are the library defaults; a project may override them through a custom theme.
 
 ---
 
@@ -23,9 +23,9 @@ Design character: clean, neutral, data-dense, and professional. It is built for 
 
 ---
 
-## 2. Core Rules for the Agent
+## 2. Core Rules
 
-Follow these rules whenever generating UI in the Arco style.
+Follow these rules whenever building UI in the Arco style.
 
 1. Use Arco components and Arco tokens before writing custom CSS. Do not rebuild a Button, Select, Table, Modal, or Form from scratch.
 2. Never hardcode colors that already exist as tokens. Use CSS variables such as `var(--color-text-1)` or `rgb(var(--primary-6))`.
@@ -518,7 +518,7 @@ body {
 }
 ```
 
-Rules for the agent:
+Rules:
 - When changing the primary color, change the whole scale (steps 1 to 10) or let Design Lab generate it, so hover, active, and disabled states stay coherent.
 - Do not override individual component styles with `!important`. Use the component's `className`, `style`, or documented theme variables.
 - Keep contrast at WCAG AA or better for text on colored backgrounds.
@@ -583,9 +583,9 @@ Rules for the agent:
 
 ---
 
-## 12. Agent Checklist Before Delivering UI
+## 12. Checklist Before Delivering UI
 
-Run through this list before returning code or a design:
+Run through this list before delivering UI code or a design:
 
 1. Are all controls real Arco components, not hand-built lookalikes?
 2. Is there exactly one primary button per region?

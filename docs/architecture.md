@@ -1,7 +1,5 @@
 # SANAA Architecture (v1.0.0)
 
-Companion documents: `AGENTS.md` (repository root, agent rules) and `docs/Design.md` (UI design system, Arco Design).
-
 Status: source of truth for the v1.0.0 design. If the code and this document disagree, either fix the code or update this document in the same commit. Do not add components, libraries or features that are not described here without writing an ADR in `docs/adr/`.
 
 ## 1. Purpose and scope

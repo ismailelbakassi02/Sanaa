@@ -190,7 +190,9 @@ class AuthFlowIntegrationTest {
         assertThat(meBody.get("tenantId").asString()).isEqualTo(tenant.getId());
         assertThat(meBody.get("tenantSlug").asString()).isEqualTo(tenant.getSlug());
 
-        assertThat(get("/api/auth/me", null).status()).isEqualTo(401);
+        HttpResult unauthenticated = get("/api/auth/me", null);
+        assertThat(unauthenticated.status()).isEqualTo(401);
+        assertThat(unauthenticated.body()).doesNotContain("\"properties\":null", "\"type\":null");
     }
 
     @Test
@@ -262,6 +264,7 @@ class AuthFlowIntegrationTest {
 
         HttpResult response = login(tenantB.getSlug(), "cross@example.com", PASSWORD);
         assertThat(response.status()).isEqualTo(401);
+        assertThat(response.body()).doesNotContain("\"properties\":null", "\"type\":null");
         assertThat(JSON.readTree(response.body()).get("detail").asString())
                 .isEqualTo("Invalid tenant, email or password.");
     }
@@ -581,8 +584,8 @@ class AuthFlowIntegrationTest {
 
     @Test
     void tenantAdminCreatesInstructorInOwnTenant() throws Exception {
-        String adminToken = loginDemoToken("bhihi", "admin@bhihi.local");
-        String email = "instructor-" + shortId() + "@bhihi.local";
+        String adminToken = loginDemoToken("atlas", "admin@atlas.local");
+        String email = "instructor-" + shortId() + "@atlas.local";
 
         HttpResult created = postJson("/api/auth/admin/users", Map.of(
                 "email", email,
@@ -592,9 +595,9 @@ class AuthFlowIntegrationTest {
         assertThat(created.status()).isEqualTo(201);
         assertThat(JSON.readTree(created.body()).get("role").asString()).isEqualTo("INSTRUCTOR");
         assertThat(JSON.readTree(created.body()).get("tenantId").asString())
-                .isEqualTo(tenant("bhihi").getId());
+                .isEqualTo(tenant("atlas").getId());
 
-        HttpResult login = login("bhihi", email, PASSWORD);
+        HttpResult login = login("atlas", email, PASSWORD);
         assertThat(login.status()).isEqualTo(200);
         assertThat(jwtDecoder.decode(JSON.readTree(login.body()).get("accessToken").asString())
                 .getClaimAsString("role")).isEqualTo("INSTRUCTOR");
@@ -603,7 +606,7 @@ class AuthFlowIntegrationTest {
     @Test
     void tenantAdminCannotCreateUserInAnotherTenant() throws Exception {
         Tenant acme = tenant("acme");
-        String adminToken = loginDemoToken("bhihi", "admin@bhihi.local");
+        String adminToken = loginDemoToken("atlas", "admin@atlas.local");
         String email = "foreign-" + shortId() + "@example.com";
 
         HttpResult created = postJson("/api/auth/admin/users", Map.of(
@@ -614,16 +617,16 @@ class AuthFlowIntegrationTest {
                 "role", "INSTRUCTOR"), adminToken);
         assertThat(created.status()).isEqualTo(201);
         assertThat(JSON.readTree(created.body()).get("tenantId").asString())
-                .isEqualTo(tenant("bhihi").getId());
+                .isEqualTo(tenant("atlas").getId());
 
-        assertThat(login("bhihi", email, PASSWORD).status()).isEqualTo(200);
+        assertThat(login("atlas", email, PASSWORD).status()).isEqualTo(200);
         assertThat(login("acme", email, PASSWORD).status()).isEqualTo(401);
     }
 
     @Test
     void tenantAdminDuplicateEmailReturnsConflict() throws Exception {
-        String adminToken = loginDemoToken("bhihi", "admin@bhihi.local");
-        String email = "duplicate-admin-" + shortId() + "@bhihi.local";
+        String adminToken = loginDemoToken("atlas", "admin@atlas.local");
+        String email = "duplicate-admin-" + shortId() + "@atlas.local";
         Map<String, Object> request = Map.of(
                 "email", email,
                 "password", PASSWORD,
@@ -638,7 +641,7 @@ class AuthFlowIntegrationTest {
 
     @Test
     void studentCannotCreateTenantUsers() throws Exception {
-        String studentToken = loginDemoToken("bhihi", "student1@bhihi.local");
+        String studentToken = loginDemoToken("atlas", "student1@atlas.local");
 
         HttpResult response = postJson("/api/auth/admin/users", Map.of(
                 "email", "forbidden-" + shortId() + "@example.com",
@@ -728,10 +731,12 @@ class AuthFlowIntegrationTest {
         assertThat(body.get("totalElements").asLong()).isGreaterThanOrEqualTo(1);
         assertThat(body.toString()).contains(slug);
 
-        String tenantAdminToken = loginDemoToken("bhihi", "admin@bhihi.local");
-        String studentToken = loginDemoToken("bhihi", "student1@bhihi.local");
+        String tenantAdminToken = loginDemoToken("atlas", "admin@atlas.local");
+        String studentToken = loginDemoToken("atlas", "student1@atlas.local");
         assertThat(get("/api/platform/tenants", tenantAdminToken).status()).isEqualTo(403);
-        assertThat(get("/api/platform/tenants", studentToken).status()).isEqualTo(403);
+        HttpResult forbidden = get("/api/platform/tenants", studentToken);
+        assertThat(forbidden.status()).isEqualTo(403);
+        assertThat(forbidden.body()).doesNotContain("\"properties\":null", "\"type\":null");
     }
 
     @Test
@@ -774,16 +779,16 @@ class AuthFlowIntegrationTest {
 
     @Test
     void demoSeedCreatesTheExpectedAccountsAndIsIdempotent() {
-        Tenant bhihi = tenant("bhihi");
+        Tenant atlas = tenant("atlas");
         Tenant acme = tenant("acme");
-        assertThat(bhihi.getPrimaryColor()).isNotEqualTo(acme.getPrimaryColor());
-        assertDemoAccounts(bhihi);
+        assertThat(atlas.getPrimaryColor()).isNotEqualTo(acme.getPrimaryColor());
+        assertDemoAccounts(atlas);
         assertDemoAccounts(acme);
 
-        long usersBefore = countUsers(bhihi.getId());
+        long usersBefore = countUsers(atlas.getId());
         demoSeed.run(null);
         demoSeed.run(null);
-        assertThat(countUsers(bhihi.getId())).isEqualTo(usersBefore);
+        assertThat(countUsers(atlas.getId())).isEqualTo(usersBefore);
     }
 
     // ---------------------------------------------------------------- helpers

@@ -102,7 +102,7 @@ reasoning applies to a disabled user.
    exactly like unknown tenants: the same 404, with no hint that the label exists.
 4. Suspending a tenant revokes all of its refresh tokens. The `platform` tenant cannot be suspended,
    because that would lock out platform administration.
-5. The demo dataset (`bhihi`, `acme`) is created only under the `demo` profile. It is idempotent and
+5. The demo dataset (`atlas`, `acme`) is created only under the `demo` profile. It is idempotent and
    reads the password from `DEMO_PASSWORD`; a missing value fails startup instead of falling back to
    a hardcoded password.
 

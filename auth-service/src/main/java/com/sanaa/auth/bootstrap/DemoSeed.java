@@ -26,7 +26,7 @@ public class DemoSeed implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DemoSeed.class);
 
     private static final List<DemoTenant> TENANTS = List.of(
-            new DemoTenant("bhihi", "Bhihi Academy", "#00B42A"),
+            new DemoTenant("atlas", "Atlas Academy", "#00B42A"),
             new DemoTenant("acme", "Acme Academy", "#722ED1"));
 
     private final Environment environment;
