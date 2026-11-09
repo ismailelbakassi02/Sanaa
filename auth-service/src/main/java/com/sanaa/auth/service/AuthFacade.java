@@ -153,8 +153,11 @@ public class AuthFacade {
 
     public BrandingResponse branding(String slug) {
         Tenant tenant = tenantLookupService.requireActiveBySlug(slug);
+        // Public registration is impossible for the platform tenant (reserved slug), so the SPA
+        // must not offer the account-creation link there either.
+        boolean registrationEnabled = !TenantSlugs.PLATFORM.equals(tenant.getSlug());
         return new BrandingResponse(tenant.getName(), tenant.getPrimaryColor(),
-                tenant.getLogoUrl());
+                tenant.getLogoUrl(), registrationEnabled);
     }
 
     /**

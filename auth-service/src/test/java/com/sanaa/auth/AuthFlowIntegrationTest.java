@@ -348,6 +348,22 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void brandingExposesWhetherPublicRegistrationIsEnabled() throws Exception {
+        Tenant atlas = tenant("atlas");
+        tenantRepository.findBySlug("platform").orElseGet(() ->
+                tenantRepository.saveAndFlush(new Tenant(UUID.randomUUID().toString(), "platform",
+                        "Platform", TenantStatus.ACTIVE, "#165DFF", null)));
+
+        JsonNode atlasBranding = JSON.readTree(
+                get("/api/auth/tenants/" + atlas.getSlug() + "/branding", null).body());
+        assertThat(atlasBranding.get("registrationEnabled").asBoolean()).isTrue();
+
+        JsonNode platformBranding = JSON.readTree(
+                get("/api/auth/tenants/platform/branding", null).body());
+        assertThat(platformBranding.get("registrationEnabled").asBoolean()).isFalse();
+    }
+
+    @Test
     void shortPasswordIsRejectedWithValidationErrors() throws Exception {
         Tenant tenant = createTenant("Validation Test", "#165DFF", null);
 

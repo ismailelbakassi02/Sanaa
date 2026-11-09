@@ -262,11 +262,15 @@ All paths are under `/api` through the gateway.
 
 Errors are RFC 7807 `ProblemDetail` from a `@RestControllerAdvice`. Entities are never returned; controllers use Java record DTOs with Bean Validation.
 
+`GET /auth/tenants/{slug}/branding` returns `{name, primaryColor, logoUrl, registrationEnabled}`. `registrationEnabled` is `false` only for the reserved `platform` tenant and `true` for every other tenant; `POST /auth/register` is unchanged and still rejects reserved slugs with 404. The SPA uses this flag to hide the account-creation link and redirect `/register` to `/login`.
+
 ## 13. Client: tenant resolution and UI
 
-The SPA derives the tenant slug from the first hostname label (`*.localhost` or the configured base domain), falling back to `?tenant=` or `VITE_DEFAULT_TENANT`. It loads branding from `/api/auth/tenants/{slug}/branding` and applies it as CSS variables. This is display only; authorization always uses the JWT claim.
+The SPA derives the tenant slug from the first hostname label (`*.localhost` or the configured base domain), falling back to `?tenant=` or `VITE_DEFAULT_TENANT`. When none of these provides a valid slug, it makes no API call and shows the organisation picker (`Choisissez votre organisation`); the chosen slug is written to `?tenant=` so a reload still works. A slug that came from `?tenant=` is preserved across in-app redirects (login to home, logout, guards). Branding is loaded from `/api/auth/tenants/{slug}/branding` and applied as CSS variables. This is display only; authorization always uses the JWT claim.
 
-UI rules: the interface uses Arco Design (`@arco-design/web-react`) and follows `docs/Design.md`. Tenant branding overrides the primary color by setting `--primary-6` as an RGB triplet. Dark mode uses the `arco-theme` body attribute. No second UI framework (no Tailwind) is added. Arco compatibility with React 19 must be verified; if it cannot be made to work cleanly, use React 18 and record the decision in `docs/adr/003-frontend.md`.
+Branding failures have three distinct screens: a 404 shows `Organisation introuvable` and a button back to the picker; a network error, timeout or 5xx shows `Impossible de contacter le serveur`, the hint `Vérifiez que le serveur est démarré` and a retry button; any other failure shows a generic French error. None of these screens stores tenant state in `localStorage`.
+
+UI rules: the interface uses Arco Design (`@arco-design/web-react`) and follows `docs/Design.md`. Tenant branding overrides the primary color by setting `--primary-6` as an RGB triplet. Dark mode uses the `arco-theme` body attribute. No second UI framework (no Tailwind) is added. Arco compatibility with React 19 must be verified; if it cannot be made to work cleanly, use React 18 and record the decision in `docs/adr/005-frontend.md`.
 
 ## 14. Infrastructure
 
