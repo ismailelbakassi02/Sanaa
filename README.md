@@ -17,7 +17,7 @@ actually implemented today.
 | `course-service` | Planned | Courses, modules, lessons, enrollment, protected media |
 | `payment-service` | Planned | Payments, receipts, review workflow |
 | `notification-service` | Planned | Kafka consumers and email delivery |
-| `client` | Planned | React single-page application (not scaffolded) |
+| `client` | In progress | React single-page application: branding, auth, protected shell, French UI |
 
 Only the modules marked Done are implemented and covered by automated tests. The planned modules
 currently contain a Spring Boot entry point and configuration only.
@@ -37,8 +37,9 @@ Backend versions resolved from the build and recorded in the Infrastructure sect
 - Kafka clients 4.2.2 (KRaft mode)
 - Testcontainers 2.0.5
 
-Planned frontend: React 19, TypeScript, Vite, Arco Design, TanStack Query and Zustand. No client
-version is pinned because the client has not been scaffolded.
+Frontend: React 19.3.1, TypeScript 5.9.3, Vite 8.3.6, Arco Design 2.66.18, TanStack Query
+5.107.1 and Zustand 5.1.0. See `docs/adr/005-frontend.md` for the React 19 compatibility check and
+the resolved versions.
 
 See [docs/architecture.md](docs/architecture.md) for the system design, tenancy model, API contract
 and infrastructure. [docs/Design.md](docs/Design.md) is the UI design reference.
@@ -111,6 +112,76 @@ The seed is idempotent by slug, so it never renames or removes rows that already
 database created by an earlier version still contains the previous demo tenant alongside the
 current ones; start from a clean volume to get exactly the accounts above. The MySQL initialization
 script also runs only on an empty volume. See the reset procedure below.
+
+## Démarrage local sous Windows
+
+Les scripts `scripts/dev-start.ps1` et `scripts/dev-stop.ps1` sont compatibles PowerShell 5.1. Ils
+lisent le fichier `.env` de la racine (sans jamais afficher ses valeurs) et supposent que
+`DEMO_PASSWORD` et `PLATFORM_ADMIN_PASSWORD` y sont définis, comme dans `.env.example`.
+
+```powershell
+# Démarre l'infrastructure, auth-service et le gateway.
+.\scripts\dev-start.ps1
+
+# Démarre aussi le serveur Vite sur http://localhost:5173.
+.\scripts\dev-start.ps1 -Client
+
+# Arrête les processus applicatifs et laisse l'infrastructure Docker en marche.
+.\scripts\dev-stop.ps1
+
+# Arrête aussi les conteneurs Docker.
+.\scripts\dev-stop.ps1 -Infra
+```
+
+`dev-start.ps1` vérifie que Docker répond, démarre l'infrastructure seulement si elle n'est pas
+saine, puis ne reconstruit les jars que s'ils sont absents. Il lance auth-service (profils
+`demo,dev`, API 8081, gestion 9081) et le gateway (8080, gestion 9082) en arrière-plan, écrit
+leurs journaux et leurs PID dans `logs/`, attend que les deux endpoints de santé répondent, puis
+affiche les URLs et les comptes de démonstration sans les mots de passe.
+
+## Lancer le frontend
+
+Prérequis : Node 20.19 ou plus récent (Node 24 est utilisé en intégration continue) et npm. Le
+gateway doit écouter sur `http://localhost:8080`.
+
+```sh
+cd client
+npm ci
+npm run dev
+```
+
+Le fichier `client/.env` est facultatif. Sans lui, `http://localhost:5173` affiche le sélecteur
+d'organisation ; `client/.env.example` documente les variables disponibles :
+
+- `VITE_API_TARGET` : cible du proxy `/api`, `http://localhost:8080` par défaut.
+- `VITE_BASE_DOMAIN` : domaine de base utilisé pour lire l'organisation dans le nom d'hôte,
+  `localhost` par défaut.
+- `VITE_DEFAULT_TENANT` : exemple facultatif (`atlas`) pour présélectionner une organisation quand
+  le nom d'hôte et `?tenant=` n'en fournissent aucune. Laisser la valeur vide ou commentée pour
+  obtenir le sélecteur.
+
+Ouvrir ensuite :
+
+- <http://localhost:5173> pour choisir une organisation ;
+- <http://localhost:5173/?tenant=atlas> pour ouvrir directement Atlas Academy ;
+- <http://atlas.localhost:5173> pour Atlas Academy ;
+- <http://acme.localhost:5173> pour Acme Academy.
+
+Le paramètre `?tenant=` est conservé lors des redirections internes (connexion vers l'accueil,
+déconnexion, garde d'authentification), donc un rechargement sur `/?tenant=atlas` reste valide.
+
+Le serveur de développement conserve l'en-tête `Host` (`changeOrigin: false`) : le gateway compare
+le sous-domaine avec l'organisation du jeton. Il ajoute aussi les en-têtes `X-Forwarded-*`
+(`xfwd: true`) pour la limitation de débit par adresse IP.
+
+Vérifications locales :
+
+```sh
+cd client
+npm run lint
+npm test
+npm run build
+```
 
 ## Reset the demo data
 
