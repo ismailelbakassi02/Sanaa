@@ -2,6 +2,107 @@ spring:
   application:
     name: gateway
 
+  # ProblemDetail omits null fields (type, properties) in every JSON error body.
+  jackson:
+    default-property-inclusion: non_null
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # Short timeouts keep the limiter's fail-open path fast when Redis is down.
+      timeout: 1s
+      connect-timeout: 1s
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 30s
+          routes:
+            # Public auth endpoints, policy A (2/s, burst 10, keyed by client IP).
+            - id: auth-public
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 0
+              predicates:
+                - Path=/api/auth/login,/api/auth/register,/api/auth/refresh
+                - Method=POST
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@clientIpKeyResolver}"
+                    redis-rate-limiter.replenishRate: 2
+                    redis-rate-limiter.burstCapacity: 10
+
+            # Logout is public but is not part of policy A.
+            - id: auth-logout
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 0
+              predicates:
+                - Path=/api/auth/logout
+                - Method=POST
+
+            # Public branding endpoint.
+            - id: auth-branding
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 0
+              predicates:
+                - Path=/api/auth/tenants/*/branding
+                - Method=GET
+
+            # Public media delivery, policy C (50/s, burst 100, keyed by IP and lesson).
+            - id: stream-media
+              uri: ${COURSE_SERVICE_URI:http://localhost:8082}
+              order: 1
+              predicates:
+                - Path=/api/stream/media/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@mediaKeyResolver}"
+                    redis-rate-limiter.replenishRate: 50
+                    redis-rate-limiter.burstCapacity: 100
+
+            # Authenticated API groups, policy B (20/s, burst 40, keyed by tenant_id:sub).
+            - id: auth
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 10
+              predicates:
+                - Path=/api/auth/**,/api/platform/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@tenantUserKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            - id: course
+              uri: ${COURSE_SERVICE_URI:http://localhost:8082}
+              order: 10
+              predicates:
+                - Path=/api/courses/**,/api/modules/**,/api/lessons/**,/api/enrollments/**,/api/stream/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@tenantUserKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            # No route for notification-service and no route for actuator.
+            - id: payment
+              uri: ${PAYMENT_SERVICE_URI:http://localhost:8083}
+              order: 10
+              predicates:
+                - Path=/api/payments/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@tenantUserKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
 server:
   port: 8080
 
@@ -12,3 +113,10 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+  metrics:
+    tags:
+      application: gateway
+
+sanaa:
+  gateway:
+    base-domain: ${GATEWAY_BASE_DOMAIN:localhost}
