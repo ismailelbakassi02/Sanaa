@@ -128,11 +128,13 @@ Write-Host 'Docker infrastructure is healthy.'
 $authJar = Join-Path $Root 'auth-service\target\auth-service-0.0.1-SNAPSHOT.jar'
 $gatewayJar = Join-Path $Root 'gateway\target\gateway-0.0.1-SNAPSHOT.jar'
 $courseJar = Join-Path $Root 'course-service\target\course-service-0.0.1-SNAPSHOT.jar'
-if (-not (Test-Path $authJar) -or -not (Test-Path $gatewayJar) -or -not (Test-Path $courseJar)) {
+$paymentJar = Join-Path $Root 'payment-service\target\payment-service-0.0.1-SNAPSHOT.jar'
+if (-not (Test-Path $authJar) -or -not (Test-Path $gatewayJar) -or
+    -not (Test-Path $courseJar) -or -not (Test-Path $paymentJar)) {
     Write-Host 'Building missing application jars...'
     Push-Location $Root
     try {
-        & mvn -B -q -DskipTests -pl auth-service,gateway,course-service -am package
+        & mvn -B -q -DskipTests -pl auth-service,gateway,course-service,payment-service -am package
         $buildExit = $LASTEXITCODE
     } finally {
         Pop-Location
@@ -149,6 +151,9 @@ if (-not (Test-Path $gatewayJar)) {
 }
 if (-not (Test-Path $courseJar)) {
     throw "Missing $courseJar after the build."
+}
+if (-not (Test-Path $paymentJar)) {
+    throw "Missing $paymentJar after the build."
 }
 
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
@@ -168,7 +173,7 @@ if (Test-Path $PidFile) {
     Remove-Item $PidFile -Force
 }
 
-foreach ($port in @(8080, 8081, 8082, 9081, 9082, 9083)) {
+foreach ($port in @(8080, 8081, 8082, 8083, 9081, 9082, 9083, 9084)) {
     $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
     if ($listener) {
         throw "Port $port is already in use. Run scripts\dev-stop.ps1 first."
@@ -240,6 +245,19 @@ Set-Content -Path $PidFile -Value $pidEntries -Encoding ASCII
 Write-Host 'Waiting for course-service health...'
 Wait-Health 'course-service' 'http://localhost:9083/actuator/health' $courseProcess.Id $courseOut
 
+Write-Host 'Starting payment-service...'
+$env:MANAGEMENT_SERVER_PORT = '9084'
+$paymentOut = Join-Path $LogDir 'payment-service.log'
+$paymentErr = Join-Path $LogDir 'payment-service.err.log'
+$paymentProcess = Start-Process -FilePath $java -ArgumentList @('-jar', $paymentJar) `
+    -WorkingDirectory $Root -RedirectStandardOutput $paymentOut -RedirectStandardError $paymentErr `
+    -PassThru -WindowStyle Hidden
+$pidEntries += "payment-service=$($paymentProcess.Id)"
+Set-Content -Path $PidFile -Value $pidEntries -Encoding ASCII
+
+Write-Host 'Waiting for payment-service health...'
+Wait-Health 'payment-service' 'http://localhost:9084/actuator/health' $paymentProcess.Id $paymentOut
+
 if ($Seed) {
     Write-Host 'Seeding demo courses through the gateway...'
     $seedScript = Join-Path $PSScriptRoot 'seed-demo.ps1'
@@ -275,9 +293,11 @@ Write-Host '-----------------'
 Write-Host 'Gateway API      : http://localhost:8080'
 Write-Host 'Auth service API : http://localhost:8081'
 Write-Host 'Course service API : http://localhost:8082'
+Write-Host 'Payment service API : http://localhost:8083'
 Write-Host 'Auth health      : http://localhost:9081/actuator/health'
 Write-Host 'Gateway health   : http://localhost:9082/actuator/health'
 Write-Host 'Course health    : http://localhost:9083/actuator/health'
+Write-Host 'Payment health   : http://localhost:9084/actuator/health'
 if ($Client) {
     Write-Host 'Client           : http://localhost:5173'
 } else {

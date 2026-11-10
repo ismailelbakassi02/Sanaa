@@ -1,5 +1,5 @@
 # Stop the local SANAA application processes started by dev-start.ps1
-# (auth-service, gateway, course-service and the optional Vite client).
+# (auth-service, gateway, course-service, payment-service and the optional Vite client).
 # Compatible with PowerShell 5.1. This file is intentionally ASCII-only.
 param(
     [switch]$Infra

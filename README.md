@@ -15,11 +15,11 @@ actually implemented today.
 | `auth-service` | Done | Register, login, refresh rotation, logout, JWKS, branding, tenant administration, platform bootstrap, demo seed |
 | `gateway` | Done | JWT validation, routing, Redis rate limits, header sanitization, Host-vs-tenant check |
 | `course-service` | In progress | Courses, modules, lessons, enrollment read model; media, playback and payment-event consumer pending |
-| `payment-service` | Planned | Payments, receipts, review workflow |
+| `payment-service` | In progress | Submission with receipt upload, review workflow, transactional outbox; Kafka publisher and enrollment consumer pending |
 | `notification-service` | Planned | Kafka consumers and email delivery |
 | `client` | In progress | React single-page application: branding, auth, protected shell, French UI |
 
-The implemented modules are covered by automated tests. The planned modules currently contain a
+The implemented modules are covered by automated tests. `notification-service` currently contains a
 Spring Boot entry point and configuration only.
 
 ## Tech stack
@@ -120,7 +120,7 @@ lisent le fichier `.env` de la racine (sans jamais afficher ses valeurs) et supp
 `DEMO_PASSWORD` et `PLATFORM_ADMIN_PASSWORD` y sont définis, comme dans `.env.example`.
 
 ```powershell
-# Démarre l'infrastructure, auth-service, le gateway et course-service.
+# Démarre l'infrastructure, auth-service, le gateway, course-service et payment-service.
 .\scripts\dev-start.ps1
 
 # Démarre aussi le serveur Vite sur http://localhost:5173.
@@ -141,10 +141,15 @@ lisent le fichier `.env` de la racine (sans jamais afficher ses valeurs) et supp
 
 `dev-start.ps1` vérifie que Docker répond, démarre l'infrastructure seulement si elle n'est pas
 saine, puis ne reconstruit les jars que s'ils sont absents. Il lance auth-service (profils
-`demo,dev`, API 8081, gestion 9081), le gateway (8080, gestion 9082) et course-service (8082,
-gestion 9083) en arrière-plan, écrit leurs journaux et leurs PID dans `logs/`, attend que les trois
-endpoints de santé répondent, puis affiche les URLs et les comptes de démonstration sans les mots
-de passe.
+`demo,dev`, API 8081, gestion 9081), le gateway (8080, gestion 9082), course-service (8082,
+gestion 9083) et payment-service (8083, gestion 9084) en arrière-plan, écrit leurs journaux et
+leurs PID dans `logs/`, attend que les quatre endpoints de santé répondent, puis affiche les URLs
+et les comptes de démonstration sans les mots de passe.
+
+payment-service stocke les justificatifs sur le disque local, sous `data/receipts` par défaut
+(variable `RECEIPTS_DIR`). Le dossier est créé au premier dépôt et reste ignoré par Git. Il lit le
+prix, le titre et la devise d'un cours auprès de course-service (`COURSE_SERVICE_URL`, par défaut
+`http://localhost:8082`).
 
 Avec `-Seed`, `dev-start.ps1` exécute ensuite `scripts/seed-demo.ps1`. Ce script lit
 `DEMO_PASSWORD` dans `.env`, se connecte au gateway en tant que `instructor@atlas.local` et

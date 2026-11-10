@@ -2,8 +2,40 @@ spring:
   application:
     name: payment-service
 
+  # ProblemDetail omits null fields (type, properties, instance) in every JSON error body.
+  jackson:
+    default-property-inclusion: non_null
+
+  datasource:
+    url: ${PAYMENT_DB_URL:jdbc:mysql://localhost:3306/payment_db?useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${PAYMENT_DB_USER}
+    password: ${PAYMENT_DB_PASSWORD}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # The container rejects an oversized upload before the controller runs. The service
+  # also checks the size explicitly so the rule holds if these limits change.
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
 server:
   port: 8083
+  error:
+    include-message: never
+    include-stacktrace: never
 
 management:
   server:
@@ -12,3 +44,18 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+  metrics:
+    tags:
+      application: payment-service
+
+sanaa:
+  jwt:
+    # Fetched lazily on the first token validation, so payment-service starts when auth-service is down.
+    jwks-uri: ${AUTH_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+    issuer: ${JWT_ISSUER:sanaa-auth}
+    audience: ${JWT_AUDIENCE:sanaa-api}
+
+  payment:
+    # Price, title and currency always come from this service, never from the client.
+    course-service-url: ${COURSE_SERVICE_URL:http://localhost:8082}
+    receipts-dir: ${RECEIPTS_DIR:./data/receipts}
