@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { logout } from '../api/auth';
 import { BrandMark } from './BrandMark';
+import { MainMenu } from './MainMenu';
 import { ThemeToggle } from './ThemeToggle';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
@@ -49,6 +50,8 @@ export function AppHeader() {
           <BrandMark name={branding.name} logoUrl={branding.logoUrl} />
           <span className="sanaa-brand__name sanaa-header__tenant">{branding.name}</span>
         </Link>
+
+        <MainMenu />
 
         <div className="sanaa-header__actions">
           <ThemeToggle />
