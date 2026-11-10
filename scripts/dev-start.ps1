@@ -1,7 +1,8 @@
 # Start the local SANAA stack on Windows.
 # Compatible with PowerShell 5.1. This file is intentionally ASCII-only.
 param(
-    [switch]$Client
+    [switch]$Client,
+    [switch]$Seed
 )
 
 $ErrorActionPreference = 'Stop'
@@ -126,11 +127,12 @@ Write-Host 'Docker infrastructure is healthy.'
 
 $authJar = Join-Path $Root 'auth-service\target\auth-service-0.0.1-SNAPSHOT.jar'
 $gatewayJar = Join-Path $Root 'gateway\target\gateway-0.0.1-SNAPSHOT.jar'
-if (-not (Test-Path $authJar) -or -not (Test-Path $gatewayJar)) {
+$courseJar = Join-Path $Root 'course-service\target\course-service-0.0.1-SNAPSHOT.jar'
+if (-not (Test-Path $authJar) -or -not (Test-Path $gatewayJar) -or -not (Test-Path $courseJar)) {
     Write-Host 'Building missing application jars...'
     Push-Location $Root
     try {
-        & mvn -B -q -DskipTests -pl auth-service,gateway -am package
+        & mvn -B -q -DskipTests -pl auth-service,gateway,course-service -am package
         $buildExit = $LASTEXITCODE
     } finally {
         Pop-Location
@@ -144,6 +146,9 @@ if (-not (Test-Path $authJar)) {
 }
 if (-not (Test-Path $gatewayJar)) {
     throw "Missing $gatewayJar after the build."
+}
+if (-not (Test-Path $courseJar)) {
+    throw "Missing $courseJar after the build."
 }
 
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
@@ -163,7 +168,7 @@ if (Test-Path $PidFile) {
     Remove-Item $PidFile -Force
 }
 
-foreach ($port in @(8080, 8081)) {
+foreach ($port in @(8080, 8081, 8082, 9081, 9082, 9083)) {
     $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
     if ($listener) {
         throw "Port $port is already in use. Run scripts\dev-stop.ps1 first."
@@ -222,6 +227,32 @@ Set-Content -Path $PidFile -Value $pidEntries -Encoding ASCII
 Write-Host 'Waiting for gateway health...'
 Wait-Health 'gateway' 'http://localhost:9082/actuator/health' $gatewayProcess.Id $gatewayOut
 
+Write-Host 'Starting course-service...'
+$env:MANAGEMENT_SERVER_PORT = '9083'
+$courseOut = Join-Path $LogDir 'course-service.log'
+$courseErr = Join-Path $LogDir 'course-service.err.log'
+$courseProcess = Start-Process -FilePath $java -ArgumentList @('-jar', $courseJar) `
+    -WorkingDirectory $Root -RedirectStandardOutput $courseOut -RedirectStandardError $courseErr `
+    -PassThru -WindowStyle Hidden
+$pidEntries += "course-service=$($courseProcess.Id)"
+Set-Content -Path $PidFile -Value $pidEntries -Encoding ASCII
+
+Write-Host 'Waiting for course-service health...'
+Wait-Health 'course-service' 'http://localhost:9083/actuator/health' $courseProcess.Id $courseOut
+
+if ($Seed) {
+    Write-Host 'Seeding demo courses through the gateway...'
+    $seedScript = Join-Path $PSScriptRoot 'seed-demo.ps1'
+    if (-not (Test-Path $seedScript)) {
+        throw "Missing $seedScript."
+    }
+    # Run in a child PowerShell so the seed script's exit code cannot end this one.
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $seedScript
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Demo seeding failed. See the output above.'
+    }
+}
+
 if ($Client) {
     $clientDir = Join-Path $Root 'client'
     if (-not (Test-Path (Join-Path $clientDir 'node_modules'))) {
@@ -243,8 +274,10 @@ Write-Host 'SANAA local stack'
 Write-Host '-----------------'
 Write-Host 'Gateway API      : http://localhost:8080'
 Write-Host 'Auth service API : http://localhost:8081'
+Write-Host 'Course service API : http://localhost:8082'
 Write-Host 'Auth health      : http://localhost:9081/actuator/health'
 Write-Host 'Gateway health   : http://localhost:9082/actuator/health'
+Write-Host 'Course health    : http://localhost:9083/actuator/health'
 if ($Client) {
     Write-Host 'Client           : http://localhost:5173'
 } else {
@@ -255,5 +288,7 @@ Write-Host 'Demo accounts (passwords are in .env)'
 Write-Host '  atlas    : admin@atlas.local, instructor@atlas.local, student1@atlas.local, student2@atlas.local'
 Write-Host '  acme     : admin@acme.local, instructor@acme.local, student1@acme.local, student2@acme.local'
 Write-Host '  platform : admin@platform.local (super admin)'
+Write-Host ''
+Write-Host 'Demo courses: run .\scripts\seed-demo.ps1, or start with -Seed.'
 Write-Host ''
 Write-Host "Logs and process ids: $LogDir"

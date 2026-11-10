@@ -1,0 +1,267 @@
+{
+  "tenants": [
+    {
+      "slug": "atlas",
+      "name": "Atlas Academy",
+      "instructorEmail": "instructor@atlas.local",
+      "courses": [
+        {
+          "title": "Montage vidéo : les bases",
+          "description": "Apprenez à monter une vidéo de bout en bout : organisation des rushes, coupes, titres, transitions et export adapté au web.",
+          "price": 349.00,
+          "currency": "MAD",
+          "status": "PUBLISHED",
+          "modules": [
+            {
+              "title": "Préparer son projet",
+              "lessons": [
+                {
+                  "title": "Organiser ses rushes",
+                  "durationSeconds": 420,
+                  "freePreview": false
+                },
+                {
+                  "title": "Découvrir l'interface de montage",
+                  "durationSeconds": 540,
+                  "freePreview": true
+                }
+              ]
+            },
+            {
+              "title": "Assembler et finaliser",
+              "lessons": [
+                {
+                  "title": "Poser les premières coupes",
+                  "durationSeconds": 600,
+                  "freePreview": false
+                },
+                {
+                  "title": "Ajouter titres et transitions",
+                  "durationSeconds": 480,
+                  "freePreview": false
+                },
+                {
+                  "title": "Exporter pour le web",
+                  "durationSeconds": 360,
+                  "freePreview": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Étalonnage et colorimétrie",
+          "description": "Maîtrisez l'étalonnage : balance des blancs, espaces colorimétriques, courbes et construction d'un look cohérent.",
+          "price": 399.00,
+          "currency": "MAD",
+          "status": "PUBLISHED",
+          "modules": [
+            {
+              "title": "Comprendre la couleur",
+              "lessons": [
+                {
+                  "title": "Balance des blancs et exposition",
+                  "durationSeconds": 450,
+                  "freePreview": false
+                },
+                {
+                  "title": "Les espaces colorimétriques",
+                  "durationSeconds": 510,
+                  "freePreview": true
+                }
+              ]
+            },
+            {
+              "title": "Construire un look",
+              "lessons": [
+                {
+                  "title": "Courbes et roues chromatiques",
+                  "durationSeconds": 570,
+                  "freePreview": false
+                },
+                {
+                  "title": "Réglages par zone",
+                  "durationSeconds": 540,
+                  "freePreview": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Son et mixage pour la vidéo",
+          "description": "Capturez et mixez un son professionnel : choix du microphone, réduction du bruit, niveaux, compression et livraison.",
+          "price": 299.00,
+          "currency": "MAD",
+          "status": "DRAFT",
+          "modules": [
+            {
+              "title": "Capturer un son propre",
+              "lessons": [
+                {
+                  "title": "Choisir son microphone",
+                  "durationSeconds": 300,
+                  "freePreview": true
+                },
+                {
+                  "title": "Éviter le bruit de fond",
+                  "durationSeconds": 330,
+                  "freePreview": false
+                }
+              ]
+            },
+            {
+              "title": "Mixer pour l'image",
+              "lessons": [
+                {
+                  "title": "Niveaux et compression",
+                  "durationSeconds": 480,
+                  "freePreview": false
+                },
+                {
+                  "title": "Musique et ambiance",
+                  "durationSeconds": 420,
+                  "freePreview": false
+                },
+                {
+                  "title": "Livrer un mixage conforme",
+                  "durationSeconds": 390,
+                  "freePreview": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "acme",
+      "name": "Acme Academy",
+      "instructorEmail": "instructor@acme.local",
+      "courses": [
+        {
+          "title": "Gestion de projet agile",
+          "description": "Découvrez les principes de l'agilité et pilotez vos projets avec des sprints, un backlog priorisé et des indicateurs simples.",
+          "price": 450.00,
+          "currency": "MAD",
+          "status": "PUBLISHED",
+          "modules": [
+            {
+              "title": "Les fondations de l'agilité",
+              "lessons": [
+                {
+                  "title": "Pourquoi l'agilité",
+                  "durationSeconds": 480,
+                  "freePreview": true
+                },
+                {
+                  "title": "Rôles et rituels",
+                  "durationSeconds": 540,
+                  "freePreview": false
+                }
+              ]
+            },
+            {
+              "title": "Piloter au quotidien",
+              "lessons": [
+                {
+                  "title": "Construire un backlog",
+                  "durationSeconds": 600,
+                  "freePreview": false
+                },
+                {
+                  "title": "Planifier un sprint",
+                  "durationSeconds": 570,
+                  "freePreview": false
+                },
+                {
+                  "title": "Mesurer avec les indicateurs",
+                  "durationSeconds": 480,
+                  "freePreview": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Excel pour la finance",
+          "description": "Structurez vos données financières et construisez des analyses claires avec les tables, les tableaux croisés dynamiques et les graphiques.",
+          "price": 380.00,
+          "currency": "MAD",
+          "status": "PUBLISHED",
+          "modules": [
+            {
+              "title": "Structurer ses données",
+              "lessons": [
+                {
+                  "title": "Tables et plages nommées",
+                  "durationSeconds": 420,
+                  "freePreview": true
+                },
+                {
+                  "title": "Contrôles de cohérence",
+                  "durationSeconds": 480,
+                  "freePreview": false
+                }
+              ]
+            },
+            {
+              "title": "Analyser et présenter",
+              "lessons": [
+                {
+                  "title": "Tableaux croisés dynamiques",
+                  "durationSeconds": 600,
+                  "freePreview": false
+                },
+                {
+                  "title": "Graphiques financiers",
+                  "durationSeconds": 450,
+                  "freePreview": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Communication professionnelle",
+          "description": "Préparez et prononcez une intervention convaincante : analyse de l'auditoire, structure du discours, gestion du trac et questions.",
+          "price": 320.00,
+          "currency": "MAD",
+          "status": "DRAFT",
+          "modules": [
+            {
+              "title": "Préparer son message",
+              "lessons": [
+                {
+                  "title": "Analyser son auditoire",
+                  "durationSeconds": 360,
+                  "freePreview": false
+                },
+                {
+                  "title": "Structurer un discours",
+                  "durationSeconds": 480,
+                  "freePreview": true
+                }
+              ]
+            },
+            {
+              "title": "Prendre la parole",
+              "lessons": [
+                {
+                  "title": "Gérer son trac",
+                  "durationSeconds": 300,
+                  "freePreview": false
+                },
+                {
+                  "title": "Répondre aux questions",
+                  "durationSeconds": 420,
+                  "freePreview": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

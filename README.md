@@ -14,13 +14,13 @@ actually implemented today.
 | `common` | Done | Tenant context and `@TenantId`, JWT claims, role model, JSON event envelope |
 | `auth-service` | Done | Register, login, refresh rotation, logout, JWKS, branding, tenant administration, platform bootstrap, demo seed |
 | `gateway` | Done | JWT validation, routing, Redis rate limits, header sanitization, Host-vs-tenant check |
-| `course-service` | Planned | Courses, modules, lessons, enrollment, protected media |
+| `course-service` | In progress | Courses, modules, lessons, enrollment read model; media, playback and payment-event consumer pending |
 | `payment-service` | Planned | Payments, receipts, review workflow |
 | `notification-service` | Planned | Kafka consumers and email delivery |
 | `client` | In progress | React single-page application: branding, auth, protected shell, French UI |
 
-Only the modules marked Done are implemented and covered by automated tests. The planned modules
-currently contain a Spring Boot entry point and configuration only.
+The implemented modules are covered by automated tests. The planned modules currently contain a
+Spring Boot entry point and configuration only.
 
 ## Tech stack
 
@@ -120,11 +120,17 @@ lisent le fichier `.env` de la racine (sans jamais afficher ses valeurs) et supp
 `DEMO_PASSWORD` et `PLATFORM_ADMIN_PASSWORD` y sont définis, comme dans `.env.example`.
 
 ```powershell
-# Démarre l'infrastructure, auth-service et le gateway.
+# Démarre l'infrastructure, auth-service, le gateway et course-service.
 .\scripts\dev-start.ps1
 
 # Démarre aussi le serveur Vite sur http://localhost:5173.
 .\scripts\dev-start.ps1 -Client
+
+# Remplit les cours de démonstration une fois la pile démarrée.
+.\scripts\dev-start.ps1 -Seed
+
+# Combine les deux options.
+.\scripts\dev-start.ps1 -Seed -Client
 
 # Arrête les processus applicatifs et laisse l'infrastructure Docker en marche.
 .\scripts\dev-stop.ps1
@@ -135,9 +141,35 @@ lisent le fichier `.env` de la racine (sans jamais afficher ses valeurs) et supp
 
 `dev-start.ps1` vérifie que Docker répond, démarre l'infrastructure seulement si elle n'est pas
 saine, puis ne reconstruit les jars que s'ils sont absents. Il lance auth-service (profils
-`demo,dev`, API 8081, gestion 9081) et le gateway (8080, gestion 9082) en arrière-plan, écrit
-leurs journaux et leurs PID dans `logs/`, attend que les deux endpoints de santé répondent, puis
-affiche les URLs et les comptes de démonstration sans les mots de passe.
+`demo,dev`, API 8081, gestion 9081), le gateway (8080, gestion 9082) et course-service (8082,
+gestion 9083) en arrière-plan, écrit leurs journaux et leurs PID dans `logs/`, attend que les trois
+endpoints de santé répondent, puis affiche les URLs et les comptes de démonstration sans les mots
+de passe.
+
+Avec `-Seed`, `dev-start.ps1` exécute ensuite `scripts/seed-demo.ps1`. Ce script lit
+`DEMO_PASSWORD` dans `.env`, se connecte au gateway en tant que `instructor@atlas.local` et
+`instructor@acme.local`, crée les cours, modules et leçons décrits dans
+`scripts/demo-courses.json`, puis publie les cours marqués `PUBLISHED`. Il n'affiche jamais les
+jetons d'accès, affiche un tableau récapitulatif et renvoie un code de sortie non nul en cas
+d'erreur.
+
+Le script est idempotent : un cours dont le titre existe déjà pour cet instructeur est ignoré, ce
+qui permet de relancer `-Seed` ou `seed-demo.ps1` sans créer de doublon.
+
+Contenu de démonstration, deux cours publiés et un brouillon par organisation :
+
+| Organisation | Cours publiés | Cours en brouillon |
+|---|---|---|
+| atlas | Montage vidéo : les bases ; Étalonnage et colorimétrie | Son et mixage pour la vidéo |
+| acme | Gestion de projet agile ; Excel pour la finance | Communication professionnelle |
+
+Chaque cours contient deux modules et deux à trois leçons par module, avec une leçon en aperçu
+gratuit. Les textes français sont stockés en UTF-8 dans `scripts/demo-courses.json`. Le script peut
+aussi être lancé seul, une fois la pile démarrée :
+
+```powershell
+.\scripts\seed-demo.ps1
+```
 
 ## Lancer le frontend
 

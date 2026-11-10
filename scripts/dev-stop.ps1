@@ -1,4 +1,5 @@
-# Stop the local SANAA application processes started by dev-start.ps1.
+# Stop the local SANAA application processes started by dev-start.ps1
+# (auth-service, gateway, course-service and the optional Vite client).
 # Compatible with PowerShell 5.1. This file is intentionally ASCII-only.
 param(
     [switch]$Infra
@@ -12,6 +13,8 @@ $ComposeFile = Join-Path $Root 'docker\docker-compose.yml'
 $PidFile = Join-Path $Root 'logs\pids.txt'
 
 if (Test-Path $PidFile) {
+    $stopped = 0
+    $failed = 0
     foreach ($line in Get-Content $PidFile) {
         if ($line -match '^\s*([^=]+)=(\d+)\s*$') {
             $name = $matches[1]
@@ -24,12 +27,18 @@ if (Test-Path $PidFile) {
             & taskkill /PID $processId /T /F 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "Stopped $name ($processId)."
+                $stopped++
             } else {
                 Write-Host "Could not stop $name ($processId)."
+                $failed++
             }
         }
     }
     Remove-Item $PidFile -Force
+    Write-Host ("{0} application process(es) stopped." -f $stopped)
+    if ($failed -gt 0) {
+        Write-Host ("Warning: {0} process(es) could not be stopped." -f $failed)
+    }
 } else {
     Write-Host 'No logs\pids.txt found; nothing to stop.'
 }
