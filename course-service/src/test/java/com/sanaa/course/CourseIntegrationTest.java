@@ -468,13 +468,22 @@ class CourseIntegrationTest {
     // ---------------------------------------------------------------- tenant isolation
 
     @Test
-    void tenantAdminCannotReadOrUpdateAnotherTenantsCourse() throws Exception {
+    void tenantAdminCannotReadAnotherTenantsCourse() throws Exception {
         String tenantA = newTenantId();
         String tenantB = newTenantId();
         Course courseA = saveCourse(tenantA, 100, "Cours secret A", CourseStatus.DRAFT);
         String adminB = token(tenantB, 900, Role.TENANT_ADMIN);
 
         assertThat(get("/api/courses/" + courseA.getId(), adminB).status()).isEqualTo(404);
+    }
+
+    @Test
+    void tenantAdminCannotUpdateAnotherTenantsCourse() throws Exception {
+        String tenantA = newTenantId();
+        String tenantB = newTenantId();
+        Course courseA = saveCourse(tenantA, 100, "Cours secret A", CourseStatus.DRAFT);
+        String adminB = token(tenantB, 900, Role.TENANT_ADMIN);
+
         assertThat(putJson("/api/courses/" + courseA.getId(),
                 updateBody("Cours piraté", PRICE, 0), adminB).status()).isEqualTo(404);
 
@@ -519,7 +528,10 @@ class CourseIntegrationTest {
         String tenantB = newTenantId();
         Course courseA = saveCourse(tenantA, 100, "Cours A", CourseStatus.DRAFT);
         Module moduleA = saveModule(tenantA, courseA.getId(), "Module A", 1);
-        String instructorB = token(tenantB, 200, Role.INSTRUCTOR);
+        // Same numeric user id as the owner in tenant A on purpose. If the course lookup lost its
+        // tenant filter, the ownership check alone would allow the write, so this assertion proves
+        // tenant isolation and not just ownership.
+        String instructorB = token(tenantB, 100, Role.INSTRUCTOR);
 
         assertThat(postJson("/api/courses/" + courseA.getId() + "/modules",
                 Map.of("title", "Module pirate"), instructorB).status()).isEqualTo(404);
