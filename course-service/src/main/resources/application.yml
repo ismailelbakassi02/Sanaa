@@ -24,6 +24,42 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  kafka:
+    # 29092 is the host listener of the dev Docker broker; containers use kafka:9092.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      # This producer only serves the dead letter recoverer: it republishes the original
+      # String key and String value unchanged.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        # A dead letter publish runs on a consumer thread; it must fail in seconds, not minutes,
+        # so the record is redelivered instead of stalling the partition.
+        max.block.ms: ${KAFKA_PRODUCER_MAX_BLOCK_MS:3000}
+        request.timeout.ms: ${KAFKA_PRODUCER_REQUEST_TIMEOUT_MS:3000}
+        delivery.timeout.ms: ${KAFKA_PRODUCER_DELIVERY_TIMEOUT_MS:6000}
+    consumer:
+      group-id: course-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # A new consumer group replays the topic instead of silently skipping enrollments.
+      auto-offset-reset: earliest
+      # Offsets are committed by the container only after a record (or its DLT copy) is handled.
+      enable-auto-commit: false
+      properties:
+        max.poll.records: 50
+    listener:
+      ack-mode: record
+    admin:
+      # A missing broker must never stop the service from starting.
+      fail-fast: false
+      operation-timeout: ${KAFKA_ADMIN_OPERATION_TIMEOUT:5s}
+      properties:
+        default.api.timeout.ms: ${KAFKA_ADMIN_API_TIMEOUT_MS:5000}
+        request.timeout.ms: ${KAFKA_ADMIN_REQUEST_TIMEOUT_MS:5000}
+
 server:
   port: 8082
   error:

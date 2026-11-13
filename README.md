@@ -151,6 +151,16 @@ payment-service stocke les justificatifs sur le disque local, sous `data/receipt
 prix, le titre et la devise d'un cours auprès de course-service (`COURSE_SERVICE_URL`, par défaut
 `http://localhost:8082`).
 
+Les événements de paiement passent par Kafka. À l'approbation, payment-service écrit l'événement
+dans sa table outbox dans la même transaction que le paiement, puis un ordonnanceur le publie sur
+`sanaa.payments.v1` environ une fois par seconde. course-service consomme `PAYMENT_APPROVED` et crée
+l'inscription : elle apparaît dans `GET /api/enrollments/me` quelques secondes après l'approbation,
+sans appel synchrone entre les deux services. L'adresse du broker vient de
+`KAFKA_BOOTSTRAP_SERVERS` (par défaut `localhost:29092` pour un broker Docker sur la machine hôte,
+`kafka:9092` depuis un conteneur). Kafka fait partie du profil `infra` démarré par `dev-start.ps1`.
+Si Kafka est arrêté, l'approbation répond quand même 200 : l'événement reste dans l'outbox et il est
+publié au redémarrage du broker, donc l'inscription arrive avec un peu de retard.
+
 Avec `-Seed`, `dev-start.ps1` exécute ensuite `scripts/seed-demo.ps1`. Ce script lit
 `DEMO_PASSWORD` dans `.env`, se connecte au gateway en tant que `instructor@atlas.local` et
 `instructor@acme.local`, crée les cours, modules et leçons décrits dans

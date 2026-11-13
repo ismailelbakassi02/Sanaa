@@ -183,7 +183,15 @@ A stored generated column `active_key` (non-null only for PENDING_REVIEW and APP
 
 ## 9. Event flow
 
-Topic: `sanaa.payments.v1` (3 partitions), key = payment id. Dead-letter topic: `sanaa.payments.v1.DLT`.
+Topic `sanaa.payments.v1` (3 partitions, replication 1) and dead-letter topic
+`sanaa.payments.v1.DLT` (same shape). The key is the payment id, so every event of one payment
+lands on the same partition and stays ordered. Both services declare the topics with `NewTopic`;
+the declaration is idempotent.
+
+Broker address comes from `KAFKA_BOOTSTRAP_SERVERS`: `localhost:29092` for the host listener of the
+development broker, `kafka:9092` from the compose network. Serialization is `StringSerializer` and
+`StringDeserializer`; the value is a JSON string built by the shared `EventJson` (Jackson 3). There
+are no Spring `JsonSerializer`/`JsonDeserializer` and no type headers.
 
 Envelope (JSON string):
 
@@ -202,19 +210,61 @@ Envelope (JSON string):
 
 Event types: `PAYMENT_SUBMITTED`, `PAYMENT_APPROVED`, `PAYMENT_REJECTED` (the last carries `reason`).
 
-Serialization uses `StringSerializer` and the service's own Jackson 3 `JsonMapper`, not Spring's `JsonDeserializer`. Producer: `acks=all`, `enable.idempotence=true`.
-
-Approval sequence:
+### 9.1 Publication (payment-service)
 
 1. TENANT_ADMIN calls `POST /api/payments/{id}/approve`.
-2. In one transaction payment-service sets status APPROVED (optimistic lock) and inserts the outbox row.
-3. `OutboxPoller` (every 1 s) selects up to 50 unpublished rows `FOR UPDATE SKIP LOCKED`, sends each with an acknowledged send (5 s timeout), sets `published_at`, commits. On failure the row stays for the next cycle.
-4. course-service consumes `PAYMENT_APPROVED`: sets `TenantContext` from the envelope, then in one transaction inserts `event_id` into `processed_events` (duplicate key means skip) and creates the ACTIVE enrollment (an existing one counts as success).
-5. notification-service consumes all three types with the same idempotency pattern, renders a Thymeleaf template (French, HTML-escaped values), sends via SMTP to Mailpit and writes `notification_log`. A send failure rolls back so retry applies.
+2. In one transaction payment-service sets status APPROVED (optimistic lock) and inserts the outbox
+   row. Either both commit or neither does.
+3. `OutboxPoller` (fixed delay 1 s, switchable with `sanaa.outbox.poller.enabled`) runs one
+   transaction per batch: `SELECT * FROM outbox_events WHERE published_at IS NULL ORDER BY id
+   LIMIT 50 FOR UPDATE SKIP LOCKED`. Native SQL is allowed only here because `outbox_events` is not
+   tenant-scoped.
+4. For each row it sends to the row's topic with key = `aggregate_id`, waits up to 5 s for the
+   broker acknowledgement, then sets `published_at` and increments `sanaa_outbox_published_total`.
+5. On a failed send it stops the batch: that row and every later row stay unpublished, a WARN is
+   logged without the payload, `sanaa_outbox_publish_failures_total` is incremented, and the next
+   tick retries. Successes made before the failure commit. The scheduled method never throws.
+6. Producer: `acks=all`, `enable.idempotence=true`, bounded `max.block.ms` (3 s),
+   `request.timeout.ms` (3 s) and `delivery.timeout.ms` (6 s), all overridable through environment
+   variables. `KafkaAdmin` uses `fail-fast=false`, so the service starts and serves HTTP with Kafka
+   down. The gauge `sanaa_outbox_unpublished` is evaluated on scrape; no metric has a tenant tag.
 
-Error handling in consumers: `DefaultErrorHandler` with exponential backoff (3 retries) and `DeadLetterPublishingRecoverer` to the DLT. Deserialization and poison messages are non-retryable.
+### 9.2 Consumption (course-service)
 
-Guarantees and trade-offs: at-least-once delivery. A crash between sending an email and committing can cause one duplicate email. Approval succeeds while Kafka is down and the event is delivered later.
+1. The listener is not transactional. It parses the String with `EventJson` and validates the
+   envelope: required fields, `eventId` a UUID, `tenantId` a valid non-nil UUID, a known
+   `eventType`, positive ids and non-blank payload text.
+2. Anything other than `PAYMENT_APPROVED` is logged at debug and acknowledged (offset committed),
+   counted as `ignored`.
+3. `TenantContext.runAs(tenantId, ...)` wraps a call to a separate `@Transactional` bean. The
+   context is therefore set before the Hibernate session opens, and it is cleared in a finally
+   block.
+4. The transactional bean first runs `INSERT IGNORE INTO processed_events (event_id, processed_at)`
+   and checks the affected rows: 0 means the event was already processed and nothing else happens.
+   `processed_events` is not tenant-scoped, so native SQL is allowed there. `INSERT IGNORE` avoids a
+   duplicate-key exception that would mark the transaction rollback-only.
+5. It then requires the course to exist in the event's tenant (any status, archived included: the
+   student already paid), and creates an ACTIVE enrollment with `source_payment_id` = payment id.
+   An existing enrollment for that tenant, user and course (any status) counts as success.
+6. Errors: `DefaultErrorHandler` with `ExponentialBackOffWithMaxRetries(3)` (500 ms, x2) and a
+   `DeadLetterPublishingRecoverer` to `sanaa.payments.v1.DLT` on the same partition. Malformed JSON,
+   a failed envelope validation, an unknown event type and an unknown course are non-retryable and
+   go to the DLT on the first attempt; database and other transient failures are retried. If the DLT
+   publish fails, the offset is not committed and the record is redelivered.
+7. Consumer settings: group `course-service`, `auto.offset.reset=earliest`,
+   `enable.auto.commit=false`, ack mode `RECORD`. There is no fatal startup check, so the service
+   starts and serves HTTP with Kafka down. `sanaa_events_processed_total{result=...}` counts
+   `processed`, `duplicate`, `ignored` and `dead_lettered`, with no tenant tag.
+
+notification-service is the next consumer: it will consume all three types with the same idempotency
+pattern, render a Thymeleaf template (French, HTML-escaped values), send via SMTP to Mailpit and
+write `notification_log`. A send failure rolls back so retry applies. It is not wired yet.
+
+Guarantees and trade-offs: at-least-once delivery with eventual consistency. Approval succeeds while
+Kafka is down and the event is delivered later. The two idempotency layers (processed event ids and
+the unique enrollment key) absorb redeliveries. The poller holds the selected row locks while it
+waits for the broker, published outbox rows are never deleted, and the DLT has no automatic replay
+tool. See [`docs/adr/008-events.md`](adr/008-events.md).
 
 ## 10. Payments and receipts
 
@@ -295,7 +345,7 @@ Rules:
 
 Stack: Java 27, Spring Boot 4.1.2, Spring Framework 7, Spring Security 7, Hibernate 7, Spring Cloud 2025.1.4, Testcontainers 2.x, Jackson 3, MySQL 8.4, Redis 7, Kafka (KRaft), React 19 (see UI rules), TypeScript, Vite, Arco Design, TanStack Query. Versions managed by the Spring BOMs are not hand-pinned.
 
-Resolved versions (filled in after the first successful build, from `mvn dependency:tree` and the Spring Boot 4.1.2 BOM): Hibernate ORM: 7.4.13.Final. Kafka clients: 4.2.2. Testcontainers: 2.0.5. Jackson: 3.1.7. Arco Design: TBD (frontend not yet scaffolded).
+Resolved versions (filled in after the first successful build, from `mvn dependency:tree` and the Spring Boot 4.1.2 BOM): Hibernate ORM: 7.4.13.Final. Spring Kafka: 4.1.2. Kafka clients: 4.2.2. Testcontainers: 2.0.5. Jackson: 3.1.7 (Jackson 3). Frontend: Arco Design 2.66.18 on React 19.3.1 with Vite 8.3.6.
 
 ## 15. Observability and CI
 
@@ -332,4 +382,4 @@ Resolved versions (filled in after the first successful build, from `mvn depende
 
 ## 18. Future work
 
-MinIO for receipts and media, a real DRM provider behind a `StreamProvider` interface, Grafana dashboards, outbox metrics and alerting, per-tenant rate limits, token revocation on tenant suspension, Google login.
+MinIO for receipts and media, a real DRM provider behind a `StreamProvider` interface, Grafana dashboards, alerting on the outbox backlog and DLT depth, per-tenant rate limits, token revocation on tenant suspension, Google login.

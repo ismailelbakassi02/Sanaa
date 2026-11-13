@@ -132,6 +132,12 @@ class PaymentIntegrationTest {
         registry.add("sanaa.payment.course-service-url", COURSE::baseUrl);
         registry.add("sanaa.payment.receipts-dir", () -> RECEIPTS.toString());
         registry.add("sanaa.jwt.jwks-uri", () -> "http://127.0.0.1:1/.well-known/jwks.json");
+        // These tests assert the outbox rows before publication, so the poller must not run.
+        registry.add("sanaa.outbox.poller.enabled", () -> "false");
+        // No broker in this class; keep the topic admin from waiting on a default port.
+        registry.add("spring.kafka.bootstrap-servers", () -> "127.0.0.1:1");
+        registry.add("spring.kafka.admin.properties[default.api.timeout.ms]", () -> "1000");
+        registry.add("spring.kafka.admin.properties[request.timeout.ms]", () -> "1000");
     }
 
     @LocalServerPort
@@ -249,6 +255,35 @@ class PaymentIntegrationTest {
 
         assertThat(result.status()).isEqualTo(409);
         assertThat(receiptFileCount(tenantId)).isZero();
+    }
+
+    @Test
+    void rejectedPaymentCanBeSubmittedAgainButAnApprovedOneCannot() throws Exception {
+        String tenantId = newTenantId();
+        long userId = 130;
+        long courseId = nextCourseId();
+        COURSE.course(courseId, "Cours reprise", PRICE, "PUBLISHED");
+        String studentToken = token(tenantId, userId, Role.STUDENT);
+        String adminToken = token(tenantId, 910, Role.TENANT_ADMIN);
+
+        long firstId = json(createPayment(studentToken, courseId)).get("id").asLong();
+        assertThat(postJson("/api/payments/" + firstId + "/reject",
+                Map.of("reason", "Justificatif illisible"), adminToken).status()).isEqualTo(200);
+
+        // The generated active key is NULL for a rejected row, so the unique index frees the slot.
+        HttpResult resubmitted = createPayment(studentToken, courseId);
+        assertThat(resubmitted.status()).isEqualTo(201);
+        long secondId = json(resubmitted).get("id").asLong();
+        assertThat(secondId).isNotEqualTo(firstId);
+        assertThat(json(resubmitted).get("status").asString()).isEqualTo("PENDING_REVIEW");
+
+        assertThat(post("/api/payments/" + secondId + "/approve", adminToken).status())
+                .isEqualTo(200);
+
+        // An approved payment keeps the slot: a second open payment would double charge the course.
+        HttpResult blocked = createPayment(studentToken, courseId);
+        assertThat(blocked.status()).isEqualTo(409);
+        assertThat(receiptFileCount(tenantId)).isEqualTo(2);
     }
 
     @Test

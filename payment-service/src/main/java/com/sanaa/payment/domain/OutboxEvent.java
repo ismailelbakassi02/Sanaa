@@ -109,4 +109,11 @@ public class OutboxEvent {
     public Instant getPublishedAt() {
         return publishedAt;
     }
+
+    /**
+     * Marks the row as sent. Only the poller calls this, inside the publishing transaction.
+     */
+    public void markPublished(Instant when) {
+        this.publishedAt = when;
+    }
 }
