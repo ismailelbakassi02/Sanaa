@@ -15,5 +15,10 @@ export function useMyEnrollments(enabled = true) {
     queryKey: enrollmentKeys.mine,
     queryFn: fetchMyEnrollments,
     enabled,
+    // Enrollments arrive asynchronously from the payment-approved event. A
+    // student who just paid should see the course after switching back to the
+    // tab, without reloading the whole page.
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
 }

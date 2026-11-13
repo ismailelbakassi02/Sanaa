@@ -21,12 +21,19 @@ export function navItemsForRole(role: Role): NavItem[] {
   if (role === 'SUPER_ADMIN') {
     return [];
   }
-  return [
+  const items: NavItem[] = [
     { key: 'courses', label: fr.menu.catalogue, path: '/courses' },
     role === 'STUDENT'
       ? { key: 'my-courses', label: fr.menu.myCourses, path: '/my-courses' }
       : { key: 'manage', label: fr.menu.myFormations, path: '/manage' },
   ];
+  if (role === 'STUDENT') {
+    items.push({ key: 'my-payments', label: fr.menu.myPayments, path: '/my-payments' });
+  }
+  if (role === 'TENANT_ADMIN') {
+    items.push({ key: 'payments', label: fr.menu.payments, path: '/payments' });
+  }
+  return items;
 }
 
 /** Header navigation. The tenant query string is preserved on every jump. */

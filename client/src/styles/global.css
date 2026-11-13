@@ -590,9 +590,9 @@ body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
 
 .sanaa-nav .arco-menu {
   /* Arco's horizontal overflow calculation needs a real width: with an
-     intrinsic width it collapses to the overflow button. Two entries fit in
-     260 px; the mobile rule below switches to the full row width. */
-  width: 320px;
+     intrinsic width it collapses to the overflow button. Three entries fit in
+     420 px; the mobile rules below use the full row width. */
+  width: 420px;
   background: transparent;
 }
 
@@ -782,15 +782,6 @@ body[arco-theme='dark'] .sanaa-price {
   margin-top: 8px;
 }
 
-/* Arco renders a disabled primary button as white on pale green (~1.6:1 in
-   light mode). While the payment flow is unavailable the label must still be
-   readable, so use the neutral disabled surface in both themes. */
-.sanaa-detail-aside__action .arco-btn-primary.arco-btn-disabled {
-  color: var(--color-text-2);
-  background-color: var(--color-fill-3);
-  border-color: transparent;
-}
-
 .sanaa-detail-aside__hint {
   margin-top: 8px;
 }
@@ -928,6 +919,204 @@ body[arco-theme='dark'] .sanaa-price {
   line-height: 1.4;
 }
 
+/* --------------------------------------------------------------- payments */
+
+.sanaa-payments-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sanaa-payment-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.sanaa-payment-reason {
+  height: auto;
+  padding: 0;
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.sanaa-payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.sanaa-payment-student {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sanaa-payment-student__name {
+  color: var(--color-text-1);
+}
+
+.sanaa-payments-note {
+  margin-top: 12px;
+}
+
+/* Seven columns have to fit the 1152 px content width without hiding the
+   row actions, so payment tables use a denser cell than the authoring table.
+   Arco indents header text with an extra padding inside the th, which both
+   eats width and misaligns it with the cells once the th padding shrinks; the
+   header keeps only its vertical padding and the inner element carries the
+   same 12 px horizontal inset as the body cells. */
+.sanaa-payments-table .arco-table-th {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.sanaa-payments-table .arco-table-th-item {
+  padding: 9px 12px;
+}
+
+.sanaa-payments-table .arco-table-td {
+  padding: 12px;
+}
+
+/* The payment tables keep every value intact instead of hiding columns on a
+   phone, so touch users need to know the table scrolls sideways. */
+.sanaa-table-hint {
+  display: none;
+  margin-top: 8px;
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.sanaa-buy {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sanaa-buy__course,
+.sanaa-buy__price {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sanaa-buy__price .sanaa-price {
+  margin: 0;
+}
+
+.sanaa-buy__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sanaa-buy__formats {
+  margin-top: -4px;
+}
+
+.sanaa-buy__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sanaa-method-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sanaa-method-group .arco-radio {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--border-radius-medium);
+}
+
+.sanaa-method-group .arco-radio-checked {
+  background: rgba(var(--primary-6), 0.06);
+  border-color: rgb(var(--primary-6));
+}
+
+.sanaa-method-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 8px;
+}
+
+.sanaa-method-option__title {
+  color: var(--color-text-1);
+  font-weight: 500;
+}
+
+/* Arco keeps primary-6 as both its fill and its text token. On the dark
+   surface that text drops to about 2:1, so payment text buttons, the status
+   filter and the active page use the lighter primary, like the header. */
+body[arco-theme='dark']
+  .sanaa-payment-actions
+  .arco-btn-text:not(.arco-btn-status-success):not(.arco-btn-status-danger),
+body[arco-theme='dark'] .sanaa-payment-reason,
+body[arco-theme='dark'] .sanaa-payments-filter .arco-radio-button.arco-radio-checked,
+body[arco-theme='dark'] .arco-pagination-item-active {
+  color: rgb(var(--primary-4));
+}
+
+.sanaa-receipt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-fill-2);
+  border-radius: var(--border-radius-medium);
+}
+
+.sanaa-receipt__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sanaa-receipt__name {
+  overflow: hidden;
+  color: var(--color-text-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sanaa-field-error {
+  color: rgb(var(--danger-6));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sanaa-field-label {
+  color: var(--color-text-1);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sanaa-reject {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sanaa-reject__meta {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* ----------------------------------------------------------- responsive */
 
 @media (max-width: 1023px) {
@@ -967,6 +1156,26 @@ body[arco-theme='dark'] .sanaa-price {
     padding: 8px 16px;
   }
 
+  .sanaa-table-hint {
+    display: block;
+  }
+
+  .sanaa-payments-filter {
+    width: 100%;
+  }
+
+  .sanaa-payments-filter .arco-radio-group {
+    flex-wrap: wrap;
+  }
+
+  .sanaa-buy__footer {
+    flex-direction: column-reverse;
+  }
+
+  .sanaa-buy__footer .arco-btn {
+    width: 100%;
+  }
+
   .sanaa-course-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
@@ -994,6 +1203,11 @@ body[arco-theme='dark'] .sanaa-price {
 }
 
 @media (max-width: 400px) {
+  .sanaa-nav .arco-menu-item {
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
   .sanaa-course-grid {
     grid-template-columns: minmax(0, 1fr);
   }

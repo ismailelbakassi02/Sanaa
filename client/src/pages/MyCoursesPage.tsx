@@ -1,4 +1,5 @@
 import { Button, Card, Empty, Grid, Result, Skeleton, Typography } from '@arco-design/web-react';
+import { IconRefresh } from '@arco-design/web-react/icon';
 import { Link } from 'react-router-dom';
 
 import { CourseCover } from '../components/CourseCover';
@@ -31,11 +32,20 @@ export function MyCoursesPage() {
 
   return (
     <div className="sanaa-page">
-      <header className="sanaa-page__head">
-        <Typography.Title heading={3} className="sanaa-title-xl">
-          {fr.myCourses.title}
-        </Typography.Title>
-        <p className="sanaa-text sanaa-muted">{fr.myCourses.subtitle}</p>
+      <header className="sanaa-page__head sanaa-page__head--row">
+        <div>
+          <Typography.Title heading={3} className="sanaa-title-xl">
+            {fr.myCourses.title}
+          </Typography.Title>
+          <p className="sanaa-text sanaa-muted">{fr.myCourses.subtitle}</p>
+        </div>
+        <Button
+          icon={<IconRefresh />}
+          loading={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          {fr.myCourses.refresh}
+        </Button>
       </header>
 
       {query.isPending ? (

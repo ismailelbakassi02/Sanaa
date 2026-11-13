@@ -6,12 +6,17 @@ import type { CourseDetail } from '../api/courses';
 import { fr } from '../i18n/fr';
 import { useCourse } from '../hooks/courses';
 import { useMyEnrollments } from '../hooks/enrollments';
+import { useMyOpenPayment } from '../hooks/payments';
 import { useAuthStore } from '../store/auth';
 import { renderWithProviders, studentUser } from '../test/utils';
 import { CourseDetailPage } from './CourseDetailPage';
 
 vi.mock('../hooks/courses', () => ({ useCourse: vi.fn() }));
 vi.mock('../hooks/enrollments', () => ({ useMyEnrollments: vi.fn() }));
+vi.mock('../hooks/payments', () => ({
+  useMyOpenPayment: vi.fn(),
+  useSubmitPayment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+}));
 
 const course: CourseDetail = {
   id: 7,
@@ -42,6 +47,34 @@ const course: CourseDetail = {
   ],
 };
 
+function mockCourse(overrides: Partial<CourseDetail> = {}) {
+  vi.mocked(useCourse).mockReturnValue({
+    isPending: false,
+    isError: false,
+    data: { ...course, ...overrides },
+    error: null,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useCourse>);
+}
+
+function mockEnrollments(enrolled: boolean) {
+  vi.mocked(useMyEnrollments).mockReturnValue({
+    isPending: false,
+    isError: false,
+    data: enrolled
+      ? [{ id: 1, status: 'ACTIVE', enrolledAt: '2026-11-02T10:00:00Z', course }]
+      : [],
+  } as unknown as ReturnType<typeof useMyEnrollments>);
+}
+
+function mockOpenPayment(open: boolean) {
+  vi.mocked(useMyOpenPayment).mockReturnValue({
+    isPending: false,
+    isError: false,
+    data: open ? { id: 5, courseId: course.id, status: 'PENDING_REVIEW' } : null,
+  } as unknown as ReturnType<typeof useMyOpenPayment>);
+}
+
 beforeEach(() => {
   useAuthStore.setState({
     accessToken: 'token',
@@ -49,18 +82,9 @@ beforeEach(() => {
     status: 'authenticated',
     sessionStartedAt: null,
   });
-  vi.mocked(useCourse).mockReturnValue({
-    isPending: false,
-    isError: false,
-    data: course,
-    error: null,
-    refetch: vi.fn(),
-  } as unknown as ReturnType<typeof useCourse>);
-  vi.mocked(useMyEnrollments).mockReturnValue({
-    isPending: false,
-    isError: false,
-    data: [],
-  } as unknown as ReturnType<typeof useMyEnrollments>);
+  mockCourse();
+  mockEnrollments(false);
+  mockOpenPayment(false);
 });
 
 function renderDetail() {
@@ -73,12 +97,11 @@ function renderDetail() {
 }
 
 describe('CourseDetailPage', () => {
-  it('shows a disabled buy button and the payment notice for a student who is not enrolled', async () => {
+  it('shows an enabled buy button for a published paid course', async () => {
     renderDetail();
 
     expect(await screen.findByText(fr.courseDetail.buy)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: fr.courseDetail.buy })).toBeDisabled();
-    expect(screen.getByText(fr.courseDetail.paymentSoon)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: fr.courseDetail.buy })).toBeEnabled();
   });
 
   it('renders the curriculum with lesson duration and free preview', async () => {
@@ -91,15 +114,39 @@ describe('CourseDetailPage', () => {
   });
 
   it('shows the enrolled tag instead of the buy button when the student is enrolled', async () => {
-    vi.mocked(useMyEnrollments).mockReturnValue({
-      isPending: false,
-      isError: false,
-      data: [{ id: 1, status: 'ACTIVE', enrolledAt: '2026-11-02T10:00:00Z', course }],
-    } as unknown as ReturnType<typeof useMyEnrollments>);
+    mockEnrollments(true);
 
     renderDetail();
 
     expect(await screen.findByText(fr.courseDetail.enrolled)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: fr.courseDetail.buy })).not.toBeInTheDocument();
+  });
+
+  it('shows a pending tag and no buy button while a payment is open', async () => {
+    mockOpenPayment(true);
+
+    renderDetail();
+
+    expect(await screen.findByText(fr.payments.pendingTag)).toBeInTheDocument();
+    expect(screen.getByText(fr.payments.enrollmentDelay)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: fr.courseDetail.buy })).not.toBeInTheDocument();
+  });
+
+  it('hides the buy button for a free course', async () => {
+    mockCourse({ price: 0 });
+
+    renderDetail();
+
+    expect(await screen.findByText(fr.catalogue.free)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: fr.courseDetail.buy })).not.toBeInTheDocument();
+  });
+
+  it('hides the buy button for a draft course', async () => {
+    mockCourse({ status: 'DRAFT' });
+
+    renderDetail();
+
+    expect(await screen.findByText(course.title)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: fr.courseDetail.buy })).not.toBeInTheDocument();
   });
 });

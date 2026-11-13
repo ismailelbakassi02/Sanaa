@@ -11,10 +11,15 @@ import { useTenantSearch } from '../tenant/navigation';
 interface RequireRoleProps {
   /** Omit to require any authenticated user. */
   roles?: readonly Role[];
+  /**
+   * Payment routes are not advertised to the other roles, so a direct URL
+   * sends the visitor home instead of showing the generic forbidden page.
+   */
+  redirectOnForbidden?: boolean;
   children?: ReactNode;
 }
 
-export function RequireRole({ roles, children }: RequireRoleProps) {
+export function RequireRole({ roles, redirectOnForbidden, children }: RequireRoleProps) {
   const status = useAuthStore((state) => state.status);
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
@@ -27,6 +32,9 @@ export function RequireRole({ roles, children }: RequireRoleProps) {
     return <Navigate to={`/login${tenantSearch}`} replace />;
   }
   if (roles && !roles.includes(user.role)) {
+    if (redirectOnForbidden) {
+      return <Navigate to={`/${tenantSearch}`} replace />;
+    }
     return (
       <div className="sanaa-center-page">
         <Result

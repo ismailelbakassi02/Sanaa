@@ -1,4 +1,5 @@
 import type { CourseStatus } from '../api/courses';
+import type { PaymentMethod, PaymentStatus } from '../api/payments';
 import type { Role } from '../api/types';
 
 /**
@@ -132,7 +133,6 @@ export const fr = {
     priceLabel: 'Prix',
     statusLabel: 'Statut',
     buy: 'Acheter ce cours',
-    paymentSoon: 'Le paiement sera disponible prochainement',
     enrolled: 'Déjà inscrit',
     loadErrorTitle: 'Impossible de charger ce cours',
     loadErrorBody: 'Vérifiez votre connexion puis réessayez.',
@@ -145,9 +145,108 @@ export const fr = {
     subtitle: 'Retrouvez les formations auxquelles vous êtes inscrit.',
     empty: "Vous n'êtes inscrit à aucun cours pour le moment.",
     browse: 'Parcourir le catalogue',
+    refresh: 'Actualiser',
     enrolledAt: (date: string) => `Inscrit le ${date}`,
     loadErrorTitle: 'Impossible de charger vos cours',
     loadErrorBody: 'Vérifiez votre connexion puis réessayez.',
+  },
+
+  payments: {
+    enrollmentDelay: "L'accès apparaît quelques secondes après la validation.",
+    pendingTag: 'Paiement en attente',
+    scrollHint:
+      'Faites défiler le tableau horizontalement pour voir toutes les colonnes.',
+    methods: {
+      BANK_WIRE: 'Virement bancaire',
+      CASHPLUS: 'Dépôt CashPlus',
+    } satisfies Record<PaymentMethod, string>,
+    methodInstructions: {
+      BANK_WIRE:
+        'Effectuez un virement du montant indiqué vers le compte communiqué par votre organisation, puis joignez le reçu. Indiquez votre e-mail en référence.',
+      CASHPLUS:
+        'Déposez le montant indiqué dans une agence CashPlus, puis joignez le reçu. Indiquez votre e-mail en référence.',
+    } satisfies Record<PaymentMethod, string>,
+    statuses: {
+      PENDING_REVIEW: 'En attente',
+      APPROVED: 'Approuvé',
+      REJECTED: 'Refusé',
+    } satisfies Record<PaymentStatus, string>,
+    buy: {
+      title: 'Acheter ce cours',
+      courseLabel: 'Cours',
+      priceLabel: 'Montant à régler',
+      methodLabel: 'Moyen de paiement',
+      receiptLabel: 'Justificatif de paiement',
+      acceptedFormats: 'Image JPEG ou PNG, ou PDF. 5 Mo maximum.',
+      chooseFile: 'Choisir un fichier',
+      removeFile: 'Retirer',
+      submit: 'Envoyer le paiement',
+      submitting: 'Envoi…',
+      success: 'Paiement envoyé, en attente de validation',
+      cancel: 'Annuler',
+    },
+    errors: {
+      conflict:
+        'Un paiement est déjà en cours ou vous êtes déjà inscrit à ce cours.',
+      tooLarge: 'Le fichier dépasse 5 Mo.',
+      unrecognized:
+        'Fichier non reconnu : envoyez une image JPEG, PNG ou un PDF.',
+      unavailable:
+        'Le service de paiement est momentanément indisponible. Réessayez plus tard.',
+      emptyFile: 'Sélectionnez un justificatif non vide.',
+    },
+    myPayments: {
+      title: 'Mes paiements',
+      subtitle: 'Suivez vos paiements et consultez vos justificatifs.',
+      empty: "Vous n'avez encore envoyé aucun paiement.",
+      browse: 'Parcourir le catalogue',
+      loadErrorTitle: 'Impossible de charger vos paiements',
+      loadErrorBody: 'Vérifiez votre connexion puis réessayez.',
+      columnDate: 'Date',
+      columnCourse: 'Cours',
+      columnAmount: 'Montant',
+      columnMethod: 'Moyen de paiement',
+      columnStatus: 'Statut',
+      columnActions: 'Actions',
+      viewReceipt: 'Voir le justificatif',
+      reason: 'Motif',
+      retry: 'Réessayer',
+    },
+    admin: {
+      title: 'Paiements',
+      subtitle:
+        'Validez ou refusez les justificatifs envoyés par les étudiants.',
+      filterLabel: 'Statut',
+      filterAll: 'Tous',
+      empty: 'Aucun paiement ne correspond à ce filtre.',
+      loadErrorTitle: 'Impossible de charger les paiements',
+      loadErrorBody: 'Vérifiez votre connexion puis réessayez.',
+      columnStudent: 'Étudiant',
+      columnCourse: 'Cours',
+      columnAmount: 'Montant',
+      columnMethod: 'Moyen de paiement',
+      columnDate: 'Date',
+      columnStatus: 'Statut',
+      columnActions: 'Actions',
+      viewReceipt: 'Voir le justificatif',
+      approve: 'Approuver',
+      approveConfirm: "Approuver ce paiement et ouvrir l'accès au cours ?",
+      approved: 'Paiement approuvé.',
+      reject: 'Refuser',
+      rejected: 'Paiement refusé.',
+      alreadyProcessed: 'Ce paiement a déjà été traité.',
+      rejectTitle: 'Refuser le paiement',
+      rejectIntro: (student: string, course: string) =>
+        `Indiquez à ${student} pourquoi le justificatif du cours « ${course} » est refusé.`,
+      rejectLabel: 'Motif du refus',
+      rejectPlaceholder:
+        'Ex. Le montant du justificatif ne correspond pas au prix du cours.',
+      rejectTooShort: 'Le motif doit contenir au moins 3 caractères.',
+      rejectTooLong: 'Le motif doit contenir au plus 500 caractères.',
+      rejectCounter: (length: number) => `${length} / 500 caractères`,
+      confirmReject: 'Refuser le paiement',
+      cancel: 'Annuler',
+    },
   },
 
   manageCourses: {
@@ -266,6 +365,8 @@ export const fr = {
     catalogue: 'Catalogue',
     myCourses: 'Mes cours',
     myFormations: 'Mes formations',
+    payments: 'Paiements',
+    myPayments: 'Mes paiements',
   },
 
   forbidden: {

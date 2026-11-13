@@ -6,6 +6,7 @@ import { AppLayout } from './components/AppLayout';
 import { LoadingScreen } from './components/LoadingScreen';
 import { RequireRole } from './components/RequireRole';
 import { fr } from './i18n/fr';
+import { AdminPaymentsPage } from './pages/AdminPaymentsPage';
 import { CataloguePage } from './pages/CataloguePage';
 import { CourseCreatePage } from './pages/CourseCreatePage';
 import { CourseDetailPage } from './pages/CourseDetailPage';
@@ -14,6 +15,7 @@ import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { ManageCoursesPage } from './pages/ManageCoursesPage';
 import { MyCoursesPage } from './pages/MyCoursesPage';
+import { MyPaymentsPage } from './pages/MyPaymentsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { useAuthStore } from './store/auth';
@@ -26,6 +28,7 @@ import { BrandingGate } from './tenant/BrandingGate';
  */
 const CONTENT_ROLES = ['STUDENT', 'INSTRUCTOR', 'TENANT_ADMIN'] as const satisfies readonly Role[];
 const STUDENT_ROLES = ['STUDENT'] as const satisfies readonly Role[];
+const ADMIN_ROLES = ['TENANT_ADMIN'] as const satisfies readonly Role[];
 const AUTHORING_ROLES = ['INSTRUCTOR', 'TENANT_ADMIN'] as const satisfies readonly Role[];
 
 export function App() {
@@ -50,6 +53,14 @@ export function App() {
 
           <Route element={<RequireRole roles={STUDENT_ROLES} />}>
             <Route path="my-courses" element={<MyCoursesPage />} />
+          </Route>
+
+          <Route element={<RequireRole roles={STUDENT_ROLES} redirectOnForbidden />}>
+            <Route path="my-payments" element={<MyPaymentsPage />} />
+          </Route>
+
+          <Route element={<RequireRole roles={ADMIN_ROLES} redirectOnForbidden />}>
+            <Route path="payments" element={<AdminPaymentsPage />} />
           </Route>
 
           <Route element={<RequireRole roles={AUTHORING_ROLES} />}>
