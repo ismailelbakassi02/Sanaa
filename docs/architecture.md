@@ -1,385 +1,315 @@
-# SANAA Architecture (v1.0.0)
+# SANAA Architecture v2 (publisher marketplace)
 
-Status: source of truth for the v1.0.0 design. If the code and this document disagree, either fix the code or update this document in the same commit. Do not add components, libraries or features that are not described here without writing an ADR in `docs/adr/`.
+Status: source of truth for v1.0.0. If code and this document disagree, fix one of them in the same commit. Any deviation needs an ADR in `docs/adr/`.
 
-## 1. Purpose and scope
+This version replaces the "one academy per subdomain" model. Where it contradicts earlier ADRs, this document wins and the ADR must be updated:
+- ADR 003: login no longer takes a tenant slug.
+- ADR 004: the Host-versus-tenant check is removed (no subdomains).
+- ADR 006 and 007: SUPER_ADMIN is no longer blocked from course and payment data; it gets audited, read-oriented oversight (section 14).
 
-SANAA is a multi-tenant e-learning platform. Organizations (tenants) publish video courses, students pay by bank wire or CashPlus receipt, a tenant admin approves the payment, and the student gets access to protected video playback.
+## 1. Product model
 
-It is a portfolio and learning project. It is built to demonstrate service boundaries, tenant isolation, asynchronous messaging and token-gated media delivery, not to run a commercial business.
+SANAA is one website with one brand, like Udemy or Coursera.
 
-In scope for v1.0.0:
+- A **publisher** is either an **INDIVIDUAL** (a solo creator) or an **ORGANIZATION** (a company with a team of teachers). Every publisher is a **tenant**: a private workspace ("studio") whose data other publishers can never read or change.
+- A **learner** has a global account, browses the public catalogue, buys courses from any publisher, and has a personal dashboard.
+- Each publisher chooses how it is paid. In v1.0.0: bank wire and CashPlus with a receipt that the publisher approves or rejects, plus a card payment path that uses a simulated gateway (section 11).
+- After approval the learner watches the course videos in a protected player.
+- A learner who paid and did not get what was promised can file a **complaint** to the platform with evidence. The platform admin (SUPER_ADMIN) reviews and decides.
+- The platform admin can see everything, to protect learners from fraud. Every sensitive access is audited (section 14).
 
-- API gateway with JWT validation and Redis rate limiting
-- Four backend services: auth, course, payment, notification
-- Shared library `common` (tenant context, roles, event envelope, JWT constants)
-- React + TypeScript single-page client
-- Docker Compose environment, Flyway migrations, Actuator/Prometheus metrics, GitHub Actions CI
+Resume claim kept: tenant isolation of data per publisher, now with explicit, narrow, tested cross-tenant read paths.
 
-Out of scope (do not implement): Google login, Stripe/PayPal, real DRM (Widevine/FairPlay), WhatsApp, Eureka, Config Server, Grafana, MinIO, lesson progress tracking, forensic watermarking.
+## 2. Actors and roles
 
-## 2. System diagram
+| Role | Who | Powers |
+|---|---|---|
+| STUDENT | any learner (global account, no tenant) | browse, buy, learn, review (after enrolling), file complaints, own payments and enrollments |
+| INSTRUCTOR | a teacher inside an ORGANIZATION | manage own courses, lessons, videos, discounts; see names of own students and ratings; reply to reviews of own courses |
+| TENANT_ADMIN | owner of an INDIVIDUAL publisher, or admin of an ORGANIZATION | everything inside the publisher: all courses of the publisher, team (organizations only), payments review, payment settings, profile, revenue, complaints of the publisher |
+| SUPER_ADMIN | platform owner | oversight and moderation across all tenants (section 14); never sells, never edits course content, never reviews receipts as a seller |
+
+Rules:
+- A solo creator is a publisher of type INDIVIDUAL with exactly one TENANT_ADMIN who also teaches. INDIVIDUAL publishers cannot add team members.
+- An ORGANIZATION admin can add, disable and re-enable teachers, and can view, edit, archive or delete any course of the organization. A teacher can only manage own courses.
+- A user has at most one publisher membership in v1.0.0. Publisher members may also buy courses (not their own publisher's).
+- Only a TENANT_ADMIN approves or rejects payments.
+
+## 3. System diagram
 
 ```mermaid
 flowchart TB
-    Browser["Browser"] --> Client["client (nginx + React SPA) :80"]
+    Browser --> Client["client (nginx + React SPA) :80"]
     Client -->|"/api"| GW["gateway :8080<br/>JWT check, rate limit, routing"]
-    GW <--> Redis[("Redis<br/>rate limit counters")]
+    GW <--> Redis[("Redis")]
 
     GW --> Auth["auth-service :8081"]
-    GW --> Course["course-service :8082"]
+    GW --> Course["course-service :8082<br/>catalogue, studio, streaming, video worker"]
     GW --> Payment["payment-service :8083"]
+    GW --> Support["support-service :8085<br/>complaints"]
 
     Auth --- AuthDB[("auth_db")]
     Course --- CourseDB[("course_db")]
-    Payment --- PaymentDB[("payment_db<br/>payments + outbox_events")]
+    Payment --- PaymentDB[("payment_db")]
+    Support --- SupportDB[("support_db")]
     Notif["notification-service :8084<br/>(no public route)"] --- NotifDB[("notification_db")]
 
-    Course -. "JWKS" .-> Auth
-    Payment -. "JWKS" .-> Auth
-    GW -. "JWKS" .-> Auth
-    Payment -->|"REST: price, title"| Course
+    Payment -->|"REST: course price"| Course
+    Support -->|"REST: verify payment and enrollment"| Payment
+    Support -->|"REST: verify enrollment"| Course
 
-    Payment -->|"outbox poller publishes"| Kafka{{"Kafka topic<br/>sanaa.payments.v1"}}
-    Kafka -->|"PAYMENT_APPROVED"| Course
-    Kafka -->|"SUBMITTED, APPROVED, REJECTED"| Notif
+    Auth -->|"outbox"| T2{{"sanaa.publishers.v1"}}
+    Payment -->|"outbox"| T1{{"sanaa.payments.v1"}}
+    Support -->|"outbox"| T3{{"sanaa.support.v1"}}
+    T1 --> Course
+    T1 --> Notif
+    T2 --> Course
+    T2 --> Notif
+    T3 --> Course
+    T3 --> Notif
     Notif -->|"SMTP"| Mailpit["Mailpit"]
-
-    Prom["Prometheus"] -. "scrape :9090" .-> GW
-    Prom -.-> Auth
-    Prom -.-> Course
-    Prom -.-> Payment
-    Prom -.-> Notif
+    Prom["Prometheus"] -. "scrape :90xx" .-> GW
 ```
 
-## 3. Components
+## 4. Components
 
-| Component | Port | Responsibility | Owns |
-|---|---|---|---|
-| client (nginx) | 80 | Serves the SPA, proxies `/api` to the gateway, overwrites `X-Forwarded-For` with `$remote_addr` | none |
-| gateway | 8080 | JWT validation, Redis rate limiting, routing, Host-vs-tenant check, strips inbound `X-Tenant*` and `X-User*` headers | none |
-| auth-service | 8081 | Tenants, users, login, registration, refresh tokens, JWT signing, JWKS endpoint | `auth_db` |
-| course-service | 8082 | Courses, modules, lessons, enrollments, playback tokens, HLS delivery, consumes payment events | `course_db` |
-| payment-service | 8083 | Payment submission, receipt storage, approve/reject, transactional outbox | `payment_db` |
-| notification-service | 8084 | Consumes payment events, sends emails, no REST API | `notification_db` |
-| common | n/a | Library: `TenantContext`, Hibernate tenant resolver, `Role` enum, claim constants, `EventEnvelope`, `JwtTenantFilter` | none |
-
-Management (Actuator) runs on port 9090 of every backend component via `management.server.port`. It is not published outside the Compose network. Only `health`, `info` and `prometheus` are exposed. When running several services from the IDE, override `MANAGEMENT_SERVER_PORT` per service (9081 to 9085) to avoid port collisions; inside Compose each container keeps 9090.
-
-Infrastructure containers: MySQL 8.4, Redis 7, Kafka (single-node KRaft), Mailpit, Prometheus.
-
-Published ports in the `full` profile: gateway 8080 and client 80 only. Tool UIs (Mailpit 8025, Prometheus 9091) and infra host ports (MySQL 3306, Redis 6379, Kafka 29092) bind to `127.0.0.1`.
-
-## 4. Design decisions
-
-1. **Database per service, one MySQL server.** Each service has its own schema and database user. No cross-database joins. A production setup would use separate instances.
-2. **Tenant comes only from the validated JWT claim.** Request headers, query parameters and bodies are never trusted for tenant identity. The only unauthenticated tenant input is `tenantSlug` on login and register, which auth-service resolves itself. In Kafka consumers the tenant comes from the event envelope.
-3. **Every service validates the JWT itself** (zero trust). The gateway adds early rejection, rate limiting and the Host check, but is not the only enforcement point.
-4. **Payment approval triggers enrollment through an event**, not a synchronous call. Eventual consistency: a student may wait a moment after approval.
-5. **Transactional outbox** avoids the dual-write problem between MySQL and Kafka. Delivery is at-least-once, so consumers are idempotent.
-6. **Shared `common` library** contains only tenant context, role constants, claim names and event DTOs. No entities are shared. Cost: a change to `common` forces a coordinated release of all services.
-7. **No Eureka and no Config Server.** Docker DNS handles discovery and environment variables handle configuration. For four services these would add complexity without benefit.
-
-## 5. Multi-tenancy
-
-Strategy: shared database, discriminator column, Hibernate 7 `@TenantId`.
-
-Request flow:
-
-1. A JWT carries `tenant_id`.
-2. `JwtTenantFilter` (from `common`) copies the claim into `TenantContext` (a `ThreadLocal`) after authentication and clears it in a `finally` block.
-3. The Hibernate `CurrentTenantIdentifierResolver` reads `TenantContext`.
-4. `@TenantId` adds the tenant predicate to queries and sets the column on insert.
-
-Rules:
-
-- `TenantContext` must be set before the transaction or Hibernate session starts. In consumers, use a non-transactional listener that sets the context and then calls a separate `@Transactional` bean.
-- The resolver is fail-closed: when no tenant is set it returns the nil UUID `00000000-0000-0000-0000-000000000000`. Reads match nothing. Inserts are rejected by `CONSTRAINT chk_tenant_not_nil CHECK (tenant_id <> '00000000-0000-0000-0000-000000000000')` on every tenant-owned table.
-- The gateway is reactive (Netty). It must not rely on `ThreadLocal`. It forwards the token; downstream services derive the tenant themselves.
-- Tests must prove that `@TenantId` filters `find`, queries and updates. If `find` by id is not filtered in the resolved Hibernate version, use an explicit JPQL query method and record it in `docs/adr/001-tenancy.md`.
-- Native SQL on tenant-owned tables is forbidden. The only native query is the outbox poller, because `outbox_events` is intentionally not tenant-scoped.
-- Unique indexes on tenant-owned tables include `tenant_id`.
-- `SUPER_ADMIN` manages tenants only and has no access to tenant content.
-
-Known limits (documented in `docs/adr/001-tenancy.md`): native queries are not filtered, noisy-neighbor effects in a shared database, and large tenants would eventually need their own database.
-
-## 6. Authentication and authorization
-
-Roles: `SUPER_ADMIN`, `TENANT_ADMIN`, `INSTRUCTOR`, `STUDENT`. Enforced with Spring Security 6 method security (`@EnableMethodSecurity`) in each service.
-
-Access token (JWT, RS256, 15 minutes):
-
-| Claim | Meaning |
-|---|---|
-| `iss` | `sanaa-auth` |
-| `aud` | `sanaa-api` |
-| `sub` | user id |
-| `tenant_id` | tenant UUID |
-| `tenant_slug` | tenant subdomain label |
-| `role` | one of the four roles |
-| `email`, `name` | display data |
-| `jti` | token id |
-
-Signing keys are RSA 2048, loaded from file paths in environment variables. Public keys are served at `/.well-known/jwks.json`. Resource servers validate signature, `exp`, issuer and audience.
-
-Refresh token: opaque, 256-bit random, stored only as SHA-256 hash, valid 7 days, rotated on every use. If a revoked token is presented, all tokens of that user are revoked. Delivered in a cookie: `HttpOnly; SameSite=Strict; Path=/api/auth`, `Secure` configurable. The refresh lookup is by hash and is not tenant-scoped; the tenant is taken from the row afterwards.
-
-The SPA keeps the access token in memory only (never `localStorage`) and restores the session by calling `/api/auth/refresh` on load.
-
-## 7. Gateway behavior
-
-- OAuth2 resource server using the auth-service JWKS URI, with issuer and audience validators.
-- Public routes: `POST /api/auth/login|register|refresh|logout`, `GET /api/auth/tenants/*/branding`, `/api/stream/media/**` (validated by course-service with the playback token).
-- Routes: `/api/auth/**` and `/api/platform/**` to auth; `/api/courses/**`, `/api/modules/**`, `/api/lessons/**`, `/api/enrollments/**`, `/api/stream/**` to course; `/api/payments/**` to payment. No route to notification-service. No route exposing Actuator.
-- Redis `RequestRateLimiter` policies:
-
-| Policy | Applies to | Key | Rate | Burst |
+| Component | Port | Management | Database | Responsibility |
 |---|---|---|---|---|
-| A | `/api/auth/login`, `/register`, `/refresh` | client IP | 2/s | 10 |
-| B | other `/api/**` | `tenant_id:sub` | 20/s | 40 |
-| C | `/api/stream/media/**` | IP + path prefix | 50/s | 100 |
+| client (nginx) | 80 | none | none | SPA, proxy `/api` to the gateway, `client_max_body_size` large enough for video upload |
+| gateway | 8080 | 9082 | none | JWT validation, rate limiting, routing, header sanitization, public routes |
+| auth-service | 8081 | 9081 | auth_db | users, memberships, publishers, profiles, images, login, refresh, JWKS, team, admin user and publisher moderation |
+| course-service | 8082 | 9083 | course_db | categories, courses, lessons, enrollments, reviews, discovery, learner home, studio, video upload and encoding worker, playback tokens and HLS delivery, admin course moderation |
+| payment-service | 8083 | 9084 | payment_db | payments, receipts, review workflow, payment settings, card provider (simulated), admin payment oversight |
+| notification-service | 8084 | 9085 | notification_db | consumes events, sends French emails, keeps publisher contact data, no REST API |
+| support-service | 8085 | 9086 | support_db | complaints, messages, attachments, resolution |
 
-- Client IP is resolved with `XForwardedRemoteAddressResolver.maxTrustedIndex(1)`. Key resolvers never return empty.
-- A global filter removes inbound `X-Tenant*` and `X-User*` headers. If the Host subdomain differs from the token's `tenant_slug`, the response is 403.
-- Timeouts: connect 5 s, response 30 s. Errors use ProblemDetail-style JSON.
-- The Redis limiter fails open if Redis is unavailable. This is documented and accepted.
-- Spring Cloud 2025.1 uses the `spring-cloud-starter-gateway-server-webflux` starter and the `spring.cloud.gateway.server.webflux.*` property prefix. Confirm names against the 2025.1 reference docs before use.
-- Browser traffic is same-origin through nginx, so no CORS configuration is needed. The Vite dev server proxies `/api` for the same reason.
+Management ports are internal only. Infrastructure: MySQL 8.4, Redis 7, Kafka KRaft, Mailpit, Prometheus. ffmpeg and ffprobe must exist wherever course-service runs.
 
-## 8. Data model
+## 5. Multi-tenancy model
 
-Conventions: `utf8mb4`, `created_at` and `updated_at` timestamps, money as `DECIMAL(10,2)`, ids as `BIGINT AUTO_INCREMENT` (tenants use `CHAR(36)` UUID). Tenant-owned tables have `tenant_id CHAR(36) NOT NULL`, the nil-UUID CHECK, and a composite index starting with `tenant_id`. All schema changes are Flyway migrations; `ddl-auto=validate`; `open-in-view=false`.
+5.1 Tenant = publisher. The tenant identifier is the publisher id. Learners and SUPER_ADMIN have no tenant.
+
+5.2 **Private data is tenant-scoped** with Hibernate `@TenantId` and the fail-closed nil-UUID rule: courses, modules, lessons, memberships, enrollments, reviews, payments, payment settings, complaints (publisher side). The tenant comes only from the validated JWT claim, or from the Kafka event envelope in consumers.
+
+5.3 **Three cross-tenant read models** are the only way to read across tenants. They are the part to defend in an interview:
+1. **Public catalogue**: anonymous, only courses with status PUBLISHED whose publisher is ACTIVE, only public columns, never private fields.
+2. **Learner view**: authenticated learner, always filtered by the user id from the JWT (`sub`), never by a client parameter. Covers own enrollments, own payments, own complaints, own reviews.
+3. **Admin view**: SUPER_ADMIN only, audited.
+
+Implementation rules:
+- Each read model is a separate read-only entity or projection (`@Immutable`, no `@TenantId`) in a package named `crosstenant`, with its own repository. Native SQL is allowed only in these packages and in the outbox pollers and processed-events inserts.
+- Controllers that use these repositories are annotated and tested for their audience. A test (ArchUnit, test scope only) fails the build if code outside `crosstenant` packages or the allowed list uses native queries, or if a `crosstenant` repository is used by a controller of the wrong audience.
+- The public DTOs never contain emails, tenant contact data, payment data, or media paths.
+
+5.4 **Cross-tenant writes** (a learner creating a payment, a complaint, a review, a free enrollment, or an admin grant): the target tenant comes from a trusted server-side lookup of the course (never from the request), and the service runs `TenantContext.callAs(targetTenant, ...)` before the transaction opens.
+
+5.5 Learners with no tenant claim run with an unset context. Tenant-scoped reads return nothing, which is the correct behavior.
+
+Limits (record in `docs/adr/001-tenancy.md` and ADR 010): native SQL is unfiltered, unique indexes must include the tenant column, noisy neighbor in a shared database, the context must be set before the transaction opens.
+
+## 6. Identity and authentication
+
+Users are global. Memberships link a user to a publisher.
+
+Flows:
+- **Register as learner**: `POST /api/auth/register` (email, password, fullName). Role STUDENT, no tenant.
+- **Create a publisher** (`POST /api/auth/publishers`): body has publisherType (INDIVIDUAL or ORGANIZATION), publisherName, slug, color, and either owner data (anonymous call, creates the user too) or nothing extra when called by a logged-in learner ("Devenir créateur"). The tenant and the TENANT_ADMIN membership are created in one transaction. A user who already has a membership gets 409. The caller then calls refresh to receive the publisher claims.
+- **Login**: email and password only. No tenant slug.
+- **Add a team member** (ORGANIZATION only, TENANT_ADMIN): creates a user with a temporary password and `must_change_password = true`, plus an INSTRUCTOR or TENANT_ADMIN membership. An existing email gets 409. `must_change_password` limits the session to change-password and logout until changed.
+- **Disable and re-enable members** (cannot disable self, cannot disable the last active TENANT_ADMIN, also under concurrency). Disabling revokes the member's refresh tokens.
+- Reserved slugs: platform, www, api, admin, app, mail, static, auth, support, help, blog, docs, status, cdn, assets, login, register, dashboard, billing, sanaa, studio, learn, courses, publishers, instructors, public.
+- Slug rules: `^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])$`, no `xn--` prefix, unique.
+- Password rule: 10 to 72 bytes in UTF-8 everywhere a password is set.
+- A suspended publisher: login and refresh issue claims without tenant data and with role STUDENT (members become plain learners). Already issued tokens stay valid up to 15 minutes (documented).
+
+Access token (RS256 + JWKS, 15 minutes): `iss=sanaa-auth`, `aud=sanaa-api`, `sub`, `email`, `name`, `role`, `jti`, `must_change_password`, and for publisher members only: `tenant_id`, `tenant_slug`, `tenant_type`. Refresh token: opaque, hashed, rotated, reuse detection revokes all tokens of the user, cookie `sanaa_refresh` (HttpOnly, SameSite=Strict, Path=/api/auth). Every service validates the JWT itself.
+
+## 7. Data model
+
+Conventions: utf8mb4, `created_at` and `updated_at`, money `DECIMAL(10,2)`, BIGINT ids (tenants and files use UUID). Tenant-scoped tables have `tenant_id CHAR(36) NOT NULL`, the nil-UUID CHECK, and an index starting with `tenant_id`. Flyway only; V2 migrations transform the existing schema and are tested by migrating a V1 database with sample rows.
 
 ### auth_db
-
-| Table | Key columns | Notes |
-|---|---|---|
-| `tenants` | id, slug (unique, `^[a-z0-9-]{3,63}$`), name, status (ACTIVE, SUSPENDED), primary_color, logo_url | not tenant-scoped |
-| `users` | id, tenant_id, email, password_hash, full_name, role, status | `@TenantId`; `UNIQUE(tenant_id, email)`; BCrypt |
-| `refresh_tokens` | id, tenant_id, user_id, token_hash (unique), expires_at, revoked_at | not `@TenantId` (lookup by hash) |
+- `users`: id, email (globally unique, lower case), password_hash, full_name, platform_role (USER or SUPER_ADMIN), status (ACTIVE, DISABLED), must_change_password, created_at. Not tenant-scoped.
+- `tenants`: id, slug (unique), name, type (INDIVIDUAL, ORGANIZATION), status (ACTIVE, SUSPENDED), primary_color, headline, description, website_url, instagram_url, linkedin_url, youtube_url, logo_image_id, contact_email, created_at.
+- `memberships`: id, tenant_id (`@TenantId`), user_id (UNIQUE), role (TENANT_ADMIN, INSTRUCTOR), status (ACTIVE, DISABLED), created_at.
+- `profiles`: user_id (PK), headline, bio, website_url, instagram_url, linkedin_url, youtube_url, avatar_image_id.
+- `images`: id (UUID), content_type, path, size_bytes, created_at (PNG or JPEG, magic bytes, 1 MB maximum, random name, never the original name).
+- `refresh_tokens`, `outbox_events`, `admin_audit_log`.
+- Migration: the old `platform` tenant and its SUPER_ADMIN become a user with platform_role SUPER_ADMIN and no membership; old tenant-scoped users become users plus memberships or plain learners; email conflicts across old tenants must be resolved in the migration (rename with a suffix and report).
 
 ### course_db
-
-| Table | Key columns | Notes |
-|---|---|---|
-| `courses` | id, tenant_id, title, description, price, currency (default MAD), status (DRAFT, PUBLISHED, ARCHIVED), instructor_id, version | `@TenantId`, `@Version` |
-| `modules` | id, tenant_id, course_id, title, position | `UNIQUE(course_id, position)` |
-| `lessons` | id, tenant_id, course_id, module_id, title, position, duration_seconds, media_status (NONE, READY), free_preview | `course_id` denormalized for fast entitlement checks |
-| `enrollments` | id, tenant_id, user_id, course_id, source_payment_id, status (ACTIVE, REVOKED), enrolled_at | `UNIQUE(tenant_id, user_id, course_id)` is the final duplicate guard |
-| `processed_events` | event_id (PK), processed_at | consumer idempotency |
+- `categories` (global reference data, seeded): id, slug, name_fr.
+- `courses`: id, tenant_id, instructor_id, instructor_name (snapshot), publisher_slug, publisher_name, publisher_type, publisher_status (snapshots, refreshed by events), category_id, title, summary (200), description (4000), level (BEGINNER, INTERMEDIATE, ADVANCED), language, skills JSON (max 12 items of 200 chars), requirements JSON (same limits), price, currency (MAD), discount_price NULL, discount_ends_at NULL, status (DRAFT, PUBLISHED, ARCHIVED, SUSPENDED), suspended_reason, rating_avg, rating_count, version, timestamps. FULLTEXT index on title and summary.
+- `course_tags`: course_id, tag (lower case, at most 10 per course).
+- `modules`, `lessons` (media_status NONE, PROCESSING, READY, FAILED; free_preview; duration_seconds).
+- `media_jobs`: id, tenant_id, lesson_id, status (PENDING, RUNNING, DONE, FAILED), attempts, error (short), source_path, created_at, finished_at.
+- `enrollments`: id, tenant_id, user_id, user_name, user_email (snapshots), course_id, source (PAYMENT, FREE, ADMIN_GRANT), source_payment_id NULL, status (ACTIVE, REVOKED), enrolled_at. `UNIQUE(tenant_id, user_id, course_id)`.
+- `reviews`: id, tenant_id, course_id, user_id, user_name, rating 1 to 5, comment (2000), status (VISIBLE, HIDDEN), hidden_reason, publisher_reply, replied_at, timestamps. `UNIQUE(course_id, user_id)`.
+- `course_views_daily`: course_id, day, views.
+- `processed_events`, `admin_audit_log`.
 
 ### payment_db
+- `payments`: as built, plus publisher_name snapshot, list_price, discount_applied, method (BANK_WIRE, CASHPLUS, CARD_SIM), provider_ref NULL, status (PENDING_REVIEW, APPROVED, REJECTED). The generated `active_key` rule stays (one open payment per user and course).
+- `payment_settings`: id, tenant_id (UNIQUE), bank_wire_instructions, cashplus_instructions, card_enabled, version.
+- `outbox_events`, `admin_audit_log`.
 
-| Table | Key columns | Notes |
-|---|---|---|
-| `payments` | id, tenant_id, user_id, user_email, user_name, course_id, course_title, amount, currency, method (BANK_WIRE, CASHPLUS), status (PENDING_REVIEW, APPROVED, REJECTED), receipt_path, receipt_content_type, reviewed_by, reviewed_at, rejection_reason, version | `@TenantId`, `@Version`; email, name and title are snapshots so notifications need no lookups |
-| `outbox_events` | id, event_id (unique), tenant_id, aggregate_id, event_type, topic, payload JSON, created_at, published_at | not `@TenantId` (poller is cross-tenant); index on `(published_at, id)` |
-
-A stored generated column `active_key` (non-null only for PENDING_REVIEW and APPROVED, value `tenant_id:user_id:course_id`) carries a unique index, so the database itself prevents two open payments for the same user and course, including under concurrency. Hibernate maps it read-only.
+### support_db
+- `complaints`: id, reporter_user_id, reporter_name, reporter_email, tenant_id (publisher), publisher_name, course_id, course_title, payment_id NULL, type (NO_ACCESS_AFTER_PAYMENT, CONTENT_NOT_AS_PROMISED, SUSPECTED_FRAUD, OTHER), description, status (OPEN, AWAITING_PUBLISHER, UNDER_REVIEW, RESOLVED), resolution (ACCESS_GRANTED, PUBLISHER_WARNED, NO_ACTION, REJECTED), resolution_note, resolved_by, version, timestamps.
+- `complaint_messages`: id, complaint_id, author_user_id, author_role (REPORTER, PUBLISHER, ADMIN), body, created_at.
+- `complaint_attachments`: id, complaint_id, message_id NULL, content_type, size_bytes, path, uploaded_by, created_at.
+- `outbox_events`, `admin_audit_log`.
 
 ### notification_db
+`processed_events`, `notification_log`, `publisher_contacts` (tenant_id, contact_email, name), filled from publisher events.
 
-`processed_events` (same shape as above) and `notification_log` (id, tenant_id, event_id, recipient_email, type, status SENT or FAILED, error, created_at).
+## 8. Events (Kafka, outbox in every producer)
 
-## 9. Event flow
+String JSON envelope: eventId, eventType, occurredAt, tenantId, payload. Jackson 3 `JsonMapper` only. Producer `acks=all`, idempotence on. Each topic has a DLT. Consumers set `TenantContext` before the transaction, are idempotent (`processed_events` with INSERT IGNORE plus the business unique constraint), retry three times with backoff, and send poison records to the DLT.
 
-Topic `sanaa.payments.v1` (3 partitions, replication 1) and dead-letter topic
-`sanaa.payments.v1.DLT` (same shape). The key is the payment id, so every event of one payment
-lands on the same partition and stays ordered. Both services declare the topics with `NewTopic`;
-the declaration is idempotent.
+| Topic | Producer | Types | Consumers |
+|---|---|---|---|
+| sanaa.payments.v1 | payment-service | PAYMENT_SUBMITTED, PAYMENT_APPROVED, PAYMENT_REJECTED | course-service (APPROVED creates the enrollment), notification-service |
+| sanaa.publishers.v1 | auth-service | PUBLISHER_UPSERTED (slug, name, type, status, contactEmail, color), INSTRUCTOR_UPDATED (userId, name) | course-service (refresh snapshots and publisher_status), notification-service (contacts) |
+| sanaa.support.v1 | support-service | COMPLAINT_OPENED, COMPLAINT_MESSAGE_ADDED, COMPLAINT_RESOLVED (resolution, courseId, userId) | course-service (ACCESS_GRANTED creates an ADMIN_GRANT enrollment), notification-service |
 
-Broker address comes from `KAFKA_BOOTSTRAP_SERVERS`: `localhost:29092` for the host listener of the
-development broker, `kafka:9092` from the compose network. Serialization is `StringSerializer` and
-`StringDeserializer`; the value is a JSON string built by the shared `EventJson` (Jackson 3). There
-are no Spring `JsonSerializer`/`JsonDeserializer` and no type headers.
+## 9. Catalogue, discovery, publisher area
 
-Envelope (JSON string):
+- Public endpoints work without a token and have their own rate limit. DTOs expose course summary, price and effective price, rating, publisher snapshot, instructor snapshot, tags, category, counts.
+- Search: `q` (FULLTEXT on title and summary, plus exact tag match, accent and case insensitive, verified by a test), category, tag, level, free only, price range, sort (trending, newest, rating, price ascending, price descending), page size capped at 24.
+- **Trending**: enrollments in the last 30 days, views in the last 7 days as tie-breaker. The formula is documented and tested.
+- Views: `GET /api/public/courses/{id}` increments the daily counter with `INSERT ... ON DUPLICATE KEY UPDATE`, never blocking the response on failure.
+- Categories endpoint with published-course counts.
+- **Course page** shows: title, summary, description, what you will learn, requirements, level, language, curriculum (lesson titles, durations, "Bientôt disponible" for lessons without ready video, free preview tags), price and discount, rating and reviews, instructor, publisher, buy or enroll action.
+- **Publisher page** `/publishers/{slug}`: name, type, headline, description, links, and for organizations the public team with their profiles. **Instructor page**: headline, bio, links, courses.
+- **Learner home** (`/api/learner/home`): my courses, my teachers (distinct instructors and publishers from enrollments), suggested categories (categories of my enrollments, then popular ones), trending, categories.
+- **Discounts**: `discount_price` below `price`, with an end date. The effective price is computed on the server at purchase time and stored on the payment. No coupon codes.
+- **Publish rules**: DRAFT to PUBLISHED needs category, summary, at least one skill, and at least one lesson with READY video. Editing a PUBLISHED course is allowed; ARCHIVED and SUSPENDED are read-only for the publisher. Only the owner instructor or a TENANT_ADMIN of the tenant can edit or delete; a course with enrollments cannot be deleted, only archived. SUSPENDED is set only by SUPER_ADMIN.
+- Studio statistics: TENANT_ADMIN sees courses, enrollments, ratings, pending receipts and revenue (approved payments); INSTRUCTOR sees enrollments and ratings of own courses and student names only (emails only for TENANT_ADMIN).
 
-```json
-{
-  "eventId": "uuid",
-  "eventType": "PAYMENT_APPROVED",
-  "occurredAt": "2026-01-01T12:00:00Z",
-  "tenantId": "uuid",
-  "payload": {
-    "paymentId": 1, "userId": 5, "userEmail": "...", "userName": "...",
-    "courseId": 9, "courseTitle": "...", "amount": "299.00", "currency": "MAD"
-  }
-}
-```
+## 10. Reviews
 
-Event types: `PAYMENT_SUBMITTED`, `PAYMENT_APPROVED`, `PAYMENT_REJECTED` (the last carries `reason`).
+Only a learner with an ACTIVE enrollment may review, once per course, and may edit own review. Rating 1 to 5, comment up to 2000 characters, plain text. The course rating average and count are updated in the same transaction. The publisher can reply once per review. SUPER_ADMIN can hide a review with a reason (audited). Hidden reviews do not count.
 
-### 9.1 Publication (payment-service)
+## 11. Payments
 
-1. TENANT_ADMIN calls `POST /api/payments/{id}/approve`.
-2. In one transaction payment-service sets status APPROVED (optimistic lock) and inserts the outbox
-   row. Either both commit or neither does.
-3. `OutboxPoller` (fixed delay 1 s, switchable with `sanaa.outbox.poller.enabled`) runs one
-   transaction per batch: `SELECT * FROM outbox_events WHERE published_at IS NULL ORDER BY id
-   LIMIT 50 FOR UPDATE SKIP LOCKED`. Native SQL is allowed only here because `outbox_events` is not
-   tenant-scoped.
-4. For each row it sends to the row's topic with key = `aggregate_id`, waits up to 5 s for the
-   broker acknowledgement, then sets `published_at` and increments `sanaa_outbox_published_total`.
-5. On a failed send it stops the batch: that row and every later row stay unpublished, a WARN is
-   logged without the payload, `sanaa_outbox_publish_failures_total` is incremented, and the next
-   tick retries. Successes made before the failure commit. The scheduled method never throws.
-6. Producer: `acks=all`, `enable.idempotence=true`, bounded `max.block.ms` (3 s),
-   `request.timeout.ms` (3 s) and `delivery.timeout.ms` (6 s), all overridable through environment
-   variables. `KafkaAdmin` uses `fail-fast=false`, so the service starts and serves HTTP with Kafka
-   down. The gauge `sanaa_outbox_unpublished` is evaluated on scrape; no metric has a tenant tag.
+- Methods per publisher: BANK_WIRE and CASHPLUS (receipt upload), and CARD_SIM when the publisher enables it. Instructions are plain text set by the publisher, shown to the learner only at purchase, never rendered as HTML.
+- Creation: the amount, currency, title and tenant come from the course lookup (effective price), never from the client. Free courses use free enrollment, not payments. A learner cannot buy a course of their own publisher, cannot have two open payments for one course, and cannot pay for a course already enrolled.
+- Receipt rules: 5 MB maximum, JPEG, PNG or PDF by magic bytes, random name, no extension, stored under `<tenantId>/<uuid>`.
+- Review: only the TENANT_ADMIN of the course's publisher approves or rejects, only from PENDING_REVIEW, with optimistic locking. A rejection needs a reason of 3 to 500 characters, which the learner sees. The payment change and its outbox row commit together.
+- **Card path (simulated)**: a `PaymentProvider` interface with a manual implementation and a simulator. The simulator mimics a hosted-payment redirect: the learner is sent to a simulator page, which calls back with an HMAC-SHA256 signed payload. The callback is verified in constant time, rejects stale timestamps, and is idempotent. This is clearly labeled as a simulation in the UI and the README. A real gateway (CMI or Payzone in Morocco) needs a merchant contract and a payout model for many publishers; it is not built and is listed as future work.
+- Access to receipts: owner, TENANT_ADMIN of the tenant, and SUPER_ADMIN (with a required reason, audited).
 
-### 9.2 Consumption (course-service)
+## 12. Protected streaming and video pipeline
 
-1. The listener is not transactional. It parses the String with `EventJson` and validates the
-   envelope: required fields, `eventId` a UUID, `tenantId` a valid non-nil UUID, a known
-   `eventType`, positive ids and non-blank payload text.
-2. Anything other than `PAYMENT_APPROVED` is logged at debug and acknowledged (offset committed),
-   counted as `ignored`.
-3. `TenantContext.runAs(tenantId, ...)` wraps a call to a separate `@Transactional` bean. The
-   context is therefore set before the Hibernate session opens, and it is cleared in a finally
-   block.
-4. The transactional bean first runs `INSERT IGNORE INTO processed_events (event_id, processed_at)`
-   and checks the affected rows: 0 means the event was already processed and nothing else happens.
-   `processed_events` is not tenant-scoped, so native SQL is allowed there. `INSERT IGNORE` avoids a
-   duplicate-key exception that would mark the transaction rollback-only.
-5. It then requires the course to exist in the event's tenant (any status, archived included: the
-   student already paid), and creates an ACTIVE enrollment with `source_payment_id` = payment id.
-   An existing enrollment for that tenant, user and course (any status) counts as success.
-6. Errors: `DefaultErrorHandler` with `ExponentialBackOffWithMaxRetries(3)` (500 ms, x2) and a
-   `DeadLetterPublishingRecoverer` to `sanaa.payments.v1.DLT` on the same partition. Malformed JSON,
-   a failed envelope validation, an unknown event type and an unknown course are non-retryable and
-   go to the DLT on the first attempt; database and other transient failures are retried. If the DLT
-   publish fails, the offset is not committed and the record is redelivered.
-7. Consumer settings: group `course-service`, `auto.offset.reset=earliest`,
-   `enable.auto.commit=false`, ack mode `RECORD`. There is no fatal startup check, so the service
-   starts and serves HTTP with Kafka down. `sanaa_events_processed_total{result=...}` counts
-   `processed`, `duplicate`, `ignored` and `dead_lettered`, with no tenant tag.
+This is content protection, not DRM (ADR 002). It cannot stop screen capture by a camera or another device.
 
-notification-service is the next consumer: it will consume all three types with the same idempotency
-pattern, render a Thymeleaf template (French, HTML-escaped values), send via SMTP to Mailpit and
-write `notification_log`. A send failure rolls back so retry applies. It is not wired yet.
+- Upload: `PUT /api/studio/lessons/{id}/video`, multipart, up to 500 MB, streamed to disk. Type verified with ffprobe (not by extension or content type), maximum duration 4 hours. Owner instructor or TENANT_ADMIN only.
+- Encoding: a `media_jobs` row and a bounded worker run ffmpeg to AES-128 HLS (H.264, AAC, 720p, 6-second segments) into `/data/media/<tenantId>/<lessonId>/` with a random key. Status NONE, PROCESSING, READY or FAILED. Jobs survive restarts (pending jobs are picked up again), failures are retried a limited number of times, the original upload is deleted after success.
+- Playback token: `POST /api/stream/lessons/{id}/token` for a learner with an ACTIVE enrollment on a PUBLISHED course of an ACTIVE publisher, a free preview lesson, the owner instructor, a TENANT_ADMIN of the tenant, or SUPER_ADMIN (preview, audited). HS256, 120 seconds, `aud=sanaa-playback`, claims `sub`, `tenant_id` (the course tenant), `lesson_id`, `jti`, separate secret, refreshed every 90 seconds by the player.
+- Media endpoints use a separate security chain. Path built from the token only, strict file name pattern, traversal blocked, key `Cache-Control: no-store`. An access token is rejected there and a playback token is rejected on the API.
+- Deterrents in the player: moving watermark with the learner's email and time, no download controls, no direct file URLs. Say plainly that an enrolled user can still extract the key and segments.
 
-Guarantees and trade-offs: at-least-once delivery with eventual consistency. Approval succeeds while
-Kafka is down and the event is delivered later. The two idempotency layers (processed event ids and
-the unique enrollment key) absorb redeliveries. The poller holds the selected row locks while it
-waits for the broker, published outbox rows are never deleted, and the DLT has no automatic replay
-tool. See [`docs/adr/008-events.md`](adr/008-events.md).
+## 13. Complaints (support-service)
 
-## 10. Payments and receipts
+- A learner opens a complaint about a course, optionally with a payment. Types: NO_ACCESS_AFTER_PAYMENT, CONTENT_NOT_AS_PROMISED (fewer videos than promised, different content), SUSPECTED_FRAUD, OTHER. The service verifies ownership through payment-service and course-service with the learner's own token (payment owned by the reporter, or an ACTIVE enrollment). Description 20 to 2000 characters, at most 5 attachments of 5 MB (JPEG, PNG, PDF by magic bytes), at most 3 open complaints per learner.
+- Visibility: the reporter sees own complaints, the TENANT_ADMIN of the publisher sees and answers complaints about its courses, SUPER_ADMIN sees all.
+- Messages: reporter, publisher and admin can add messages with attachments while the complaint is not RESOLVED. A publisher message moves it to UNDER_REVIEW. The admin can ask the publisher to answer (AWAITING_PUBLISHER).
+- Resolution by SUPER_ADMIN with a note: ACCESS_GRANTED (event creates an ADMIN_GRANT enrollment), PUBLISHER_WARNED, NO_ACTION, REJECTED. Suspending a course or a publisher is done through the admin moderation endpoints, recorded with the complaint id as the reason.
+- The platform does not move money. Refunds are a matter between learner and publisher; the complaint outcome records the decision.
+- Emails: opened (publisher and platform admin address from `PLATFORM_ADMIN_EMAIL`), messages, resolved.
 
-- `POST /api/payments` is multipart (`courseId`, `method`, receipt file), STUDENT only.
-- Amount, currency and title come from course-service (REST via `RestClient`, forwarding the caller's bearer token, connect 2 s, read 5 s). The course must be PUBLISHED. They are never taken from the client. An unknown or unpublished course is 404, a free course is 422, course-service down or slow is 503.
-- A student who already has an ACTIVE enrollment for the course gets 409, checked through `GET /api/enrollments/me`.
-- Receipts: maximum 5 MB, JPEG, PNG or PDF verified by magic bytes, stored behind a `ReceiptStorage` interface on local disk (`RECEIPTS_DIR`, default `./data/receipts`) as `<tenantId>/<random UUID>` with no extension, outside any web root. The original filename is never used and the verified content type, not the declared one, is stored.
-- Download: owner or TENANT_ADMIN only, with `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`. Anyone else gets 404.
-- Approve and reject are allowed only from PENDING_REVIEW; otherwise 409. A rejection needs a reason of 3 to 500 characters. The reviewer comes from the token subject and an optimistic version conflict is 409.
-- INSTRUCTOR and SUPER_ADMIN have no access to any payment endpoint (403).
-- The payment row and its outbox row are inserted in the same transaction. On submission the file is written first and deleted again if the insert fails.
+## 14. Platform oversight and audit
 
-## 11. Protected streaming
+SUPER_ADMIN endpoints live under `/api/admin/...` in each service, are read-oriented plus moderation, and every call to them is logged.
 
-This is content protection, not DRM. An enrolled user can still extract the key and segments. See `docs/adr/002-streaming.md`.
+- auth-service: search and view users (never password hashes), suspend and reactivate users, list publishers, suspend and reactivate publishers (reasons required).
+- course-service: list and search all courses with any status, view full curriculum, preview playback (audited), suspend and unsuspend a course (reason), hide a review (reason), list enrollments of a course, platform statistics.
+- payment-service: list and view all payments, download receipts with a required reason.
+- support-service: all complaints, resolve.
+- SUPER_ADMIN cannot create or edit courses, change prices, approve or reject payments, or create enrollments except through a complaint resolution.
+- **Audit log**: each service writes `admin_audit_log` rows (actor, action, target type and id, tenant, reason, time) for every admin write and every read of personal data (user detail, receipt, enrollment list, preview playback). Database triggers block UPDATE and DELETE on the table (tested). A viewer endpoint per service lists entries, filtered by actor, action and date.
+- Privacy: collect the minimum, show a privacy notice page in French, and state that admin access is logged. This is not legal advice; Moroccan data protection law (09-08) applies to a real deployment.
 
-Storage: `/data/media/{tenantId}/{lessonId}/` containing `index.m3u8`, `seg_NNN.ts`, `key.bin`, produced by `scripts/package-hls.sh` (AES-128 HLS, 6 s segments, VOD).
+## 15. Notifications
 
-Flow:
+French emails, UTF-8, HTML-escaped values, idempotent. Recipients: learner emails come from event payloads; publisher admin emails come from `publisher_contacts`; the platform admin from `PLATFORM_ADMIN_EMAIL`.
 
-1. `POST /api/stream/lessons/{id}/token` authorizes one of: STUDENT with an ACTIVE enrollment on a PUBLISHED course, lesson marked `free_preview`, INSTRUCTOR owner, TENANT_ADMIN.
-2. course-service issues a playback token: HS256, 120 seconds, `aud=sanaa-playback`, claims `sub`, `tenant_id`, `lesson_id`, `jti`, signed with a separate secret.
-3. The client fetches `/api/stream/media/{lessonId}/index.m3u8`, `/key` and `/seg_NNN.ts` with `Authorization: Bearer <playback token>` (hls.js `xhrSetup`) and refreshes the token every 90 seconds.
-4. Media endpoints use a separate `SecurityFilterChain` (`@Order(1)`, matcher `/api/stream/media/**`). An access token is rejected there, and a playback token is rejected on the API.
+| Event | Email to |
+|---|---|
+| PAYMENT_SUBMITTED | learner (received), publisher admin (to review) |
+| PAYMENT_APPROVED | learner (access granted) |
+| PAYMENT_REJECTED | learner (with the reason) |
+| COMPLAINT_OPENED | publisher admin, platform admin |
+| COMPLAINT_MESSAGE_ADDED | the other parties |
+| COMPLAINT_RESOLVED | learner, publisher admin |
 
-Safeguards: the file path is built from the token's `tenant_id` and the path lesson id, never from request input; file names must match `^seg_\d{3,6}\.ts$`, `index.m3u8` or `key`; the resolved path must stay inside the lesson directory; segments support HTTP Range; the key response is `Cache-Control: no-store`.
+## 16. API summary
 
-The on-screen watermark (email plus time, repositioned every 5 s) is a client-side deterrent, not forensic protection.
+All under `/api` through the gateway. `P` public, `L` any logged-in user, `S` STUDENT, `I` INSTRUCTOR, `T` TENANT_ADMIN, `A` SUPER_ADMIN.
 
-## 12. REST API summary
-
-All paths are under `/api` through the gateway.
-
-| Service | Endpoints | Roles |
+| Service | Endpoints | Who |
 |---|---|---|
-| auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`; `GET /auth/tenants/{slug}/branding` | public |
-| auth | `GET /auth/me` | any authenticated |
-| auth | `POST /auth/admin/users` | TENANT_ADMIN |
-| auth | `POST /platform/tenants`, `GET /platform/tenants`, `PATCH /platform/tenants/{id}/status` | SUPER_ADMIN |
-| course | `GET /courses`, `GET /courses/{id}` | authenticated (visibility depends on role) |
-| course | `POST/PUT /courses`, `PATCH /courses/{id}/publish`, `POST /courses/{id}/modules`, `POST /modules/{id}/lessons`, `PUT /lessons/{id}/media` | INSTRUCTOR (own courses), TENANT_ADMIN |
-| course | `GET /enrollments/me` | STUDENT |
-| course | `POST /stream/lessons/{id}/token` | entitled user |
+| auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` | P |
+| auth | `POST /auth/password`, `GET /auth/me`, `GET/PUT /auth/profile`, `POST /auth/images` | L |
+| auth | `POST /auth/publishers` (anonymous with owner data, or logged-in learner), `GET /auth/publishers/slug-available` | P |
+| auth | `PUT /auth/publishers/me`, `GET /auth/team`, `POST /auth/team`, `PATCH /auth/team/{userId}/status`, `POST /auth/team/{userId}/reset-password` | T (organizations for team) |
+| auth | `GET /public/publishers/{slug}`, `/public/instructors/{userId}`, `/public/images/{id}` | P |
+| auth | `/admin/users`, `/admin/publishers`, `/admin/audit/auth` | A |
+| course | `GET /public/categories`, `/public/courses`, `/public/courses/trending`, `/public/courses/{id}`, `/public/courses/{id}/reviews` | P |
+| course | `GET /learner/home`, `/learner/enrollments`, `POST /courses/{id}/enroll` (free), `POST/PUT /courses/{id}/reviews`, `POST /stream/lessons/{id}/token` | L |
+| course | `/studio/courses...` (CRUD, modules, lessons, tags, discount, publish, archive, delete), `PUT /studio/lessons/{id}/video`, `GET /studio/lessons/{id}/media`, `GET /studio/courses/{id}/students`, `POST /studio/reviews/{id}/reply`, `GET /studio/stats` | I (own), T |
 | course | `GET /stream/media/{lessonId}/index.m3u8`, `/key`, `/seg_NNN.ts` | playback token |
-| payment | `POST /payments`, `GET /payments/me` | STUDENT |
-| payment | `GET /payments?status=`, `POST /payments/{id}/approve`, `/reject` | TENANT_ADMIN |
-| payment | `GET /payments/{id}/receipt` | owner or TENANT_ADMIN |
+| course | `/admin/courses...`, `/admin/reviews/{id}/hide`, `/admin/stats`, `/admin/audit/course` | A |
+| payment | `GET /payments/instructions?courseId=`, `POST /payments`, `POST /payments/card`, `GET /payments/me`, `GET /payments/{id}`, `GET /payments/{id}/receipt` | L (owner) |
+| payment | `POST /payments/card/callback` (HMAC signed) | P |
+| payment | `GET /studio/payments`, `POST /studio/payments/{id}/approve|reject`, `GET/PUT /studio/payment-settings`, `GET /studio/payments/stats` | T |
+| payment | `/admin/payments...`, `/admin/audit/payment` | A |
+| support | `POST /complaints`, `GET /complaints/me`, `GET /complaints/{id}`, `POST /complaints/{id}/messages`, `GET /complaints/{id}/attachments/{aid}` | L (reporter) |
+| support | `GET /studio/complaints`, `/studio/complaints/{id}`, `POST /studio/complaints/{id}/messages` | T |
+| support | `/admin/complaints...`, `POST /admin/complaints/{id}/resolve`, `/admin/audit/support` | A |
 
-Errors are RFC 7807 `ProblemDetail` from a `@RestControllerAdvice`. Entities are never returned; controllers use Java record DTOs with Bean Validation.
+Errors are RFC 7807 without null fields. Never expose entities. List sizes are capped.
 
-`GET /auth/tenants/{slug}/branding` returns `{name, primaryColor, logoUrl, registrationEnabled}`. `registrationEnabled` is `false` only for the reserved `platform` tenant and `true` for every other tenant; `POST /auth/register` is unchanged and still rejects reserved slugs with 404. The SPA uses this flag to hide the account-creation link and redirect `/register` to `/login`.
+## 17. Gateway
 
-## 13. Client: tenant resolution and UI
+- Resource server with the auth-service JWKS, issuer and audience validators. Public routes: login, register, refresh, logout, publisher creation, slug check, `/api/public/**`, card callback, and `/api/stream/media/**`.
+- Routes by path to auth, course, payment and support. No route to notification-service or to Actuator.
+- Rate-limit policies (Redis, fail open, documented): A (login, register, refresh, slug check, by IP), B (authenticated API, key is `sub`), C (media, IP and lesson), D (publisher creation, by IP, about 5 burst then 1 per minute), E (public catalogue, by IP), F (uploads and complaint creation, by `sub`, low rate).
+- Removes inbound `X-Tenant*` and `X-User*` headers. If `must_change_password` is true, only change-password and logout are allowed.
+- Large uploads: raise the body and response timeouts only on the upload routes; check the maximum size at the gateway and in the service.
 
-The SPA derives the tenant slug from the first hostname label (`*.localhost` or the configured base domain), falling back to `?tenant=` or `VITE_DEFAULT_TENANT`. When none of these provides a valid slug, it makes no API call and shows the organisation picker (`Choisissez votre organisation`); the chosen slug is written to `?tenant=` so a reload still works. A slug that came from `?tenant=` is preserved across in-app redirects (login to home, logout, guards). Branding is loaded from `/api/auth/tenants/{slug}/branding` and applied as CSS variables. This is display only; authorization always uses the JWT claim.
+## 18. Client
 
-Branding failures have three distinct screens: a 404 shows `Organisation introuvable` and a button back to the picker; a network error, timeout or 5xx shows `Impossible de contacter le serveur`, the hint `Vérifiez que le serveur est démarré` and a retry button; any other failure shows a generic French error. None of these screens stores tenant state in `localStorage`.
+One domain, one brand (SANAA). Public pages without login: home (search, categories, trending), courses with filters, course page, publisher and instructor pages. Logged in:
+- Learner: `/learn` (dashboard), course player, my payments, my complaints (create with evidence, follow messages), reviews.
+- Studio (publishers): dashboard, courses and editor (including video upload with progress and status), discounts, students, reviews, payments review and settings, team (organizations), profile, complaints.
+- Admin: dashboard, users, publishers, courses, reviews, payments, complaints, audit.
+- All user-visible text is French in `src/i18n/fr.ts`. Arco Design only. Tenant color affects only publisher pages and course covers. Access tokens live in memory only.
 
-UI rules: the interface uses Arco Design (`@arco-design/web-react`) and follows `docs/Design.md`. Tenant branding overrides the primary color by setting `--primary-6` as an RGB triplet. Dark mode uses the `arco-theme` body attribute. No second UI framework (no Tailwind) is added. Arco compatibility with React 19 must be verified; if it cannot be made to work cleanly, use React 18 and record the decision in `docs/adr/005-frontend.md`.
+## 19. Infrastructure, observability, CI
 
-## 14. Infrastructure
+- Docker Compose profiles `infra` and `full`; every container has a healthcheck; only the client (80) is published in `full`, and the gateway is reachable only inside the network (so the client IP header cannot be spoofed). nginx overwrites `X-Forwarded-For` with `$remote_addr`, sets large body limits and upload timeouts.
+- Volumes: media, receipts, images, complaint attachments, uploads (temporary), MySQL, Kafka. course-service image includes ffmpeg.
+- Prometheus on every management port, tag `application`, never a tenant tag. Add counters for events processed, outbox state, media jobs by result, complaints opened, admin audit entries.
+- CI: backend `mvn -B verify`, frontend lint, test and build, docker build.
 
-Docker Compose profiles:
+## 20. Invariants that tests must prove
 
-- `infra`: MySQL, Redis, Kafka, Mailpit, Prometheus. Services run from the IDE. Kafka host listener is `localhost:29092`.
-- `full`: infra plus gateway, four services and client. Services use `kafka:9092`.
+- Publisher B can never read or change publisher A's courses, lessons, enrollments, reviews, payments, settings or complaints (404). Break test: remove the filter and see exactly these tests fail.
+- The public catalogue shows only PUBLISHED courses of ACTIVE publishers and never private fields; suspended courses and publishers disappear.
+- A learner sees only own enrollments, payments, complaints and reviews, even when passing other ids.
+- Only SUPER_ADMIN reaches `/admin/**`; every admin write and every personal-data read creates an audit row; the audit table cannot be updated or deleted.
+- INSTRUCTOR cannot touch another instructor's course; TENANT_ADMIN can touch all courses of its publisher only; an INDIVIDUAL publisher cannot add members; the last active admin cannot be disabled, also under concurrency.
+- Free enrollment, payment approval and ACCESS_GRANTED each produce exactly one enrollment, also with duplicate events and parallel requests.
+- Payment amount and tenant come from the course lookup; a client cannot change them. Discount expiry is honored.
+- Card callback: bad signature, stale timestamp and replay are rejected.
+- Reviews require an enrollment, one per course, and update the average.
+- Video: upload of a non-video file with a video extension is rejected; encoding survives a restart; playback tokens are bound to user, lesson and tenant; expired, cross-lesson, cross-tenant and path traversal requests fail.
+- Complaints: ownership is verified; a publisher sees only complaints about its courses; attachments are validated by magic bytes; resolving with ACCESS_GRANTED creates the enrollment.
+- Burst on login and on publisher creation returns 429. Redis down fails open and is logged.
+- A clean clone starts with one Compose command, and CI is green.
 
-Rules:
+## 21. Not built, and why
 
-- Every container has a healthcheck, and dependents use `depends_on: condition: service_healthy`.
-- MySQL init script creates four databases and four users from environment variables.
-- Service Dockerfiles are multi-stage (Maven build on `eclipse-temurin:27-jdk`, run on `27-jre`; confirm the tags exist), run as non-root, and use the repository root as build context because of `common`.
-- The MySQL init script runs only on an empty data volume. Changing database users or passwords requires `docker compose down -v`, which deletes data.
-- Shell scripts and the MySQL init script must use LF line endings (enforced by `.gitattributes`), otherwise they fail inside Linux containers.
-- Secrets come from `.env` (gitignored; `.env.example` committed). JWT keys are generated by `scripts/gen-jwt-keys.sh` into a gitignored `secrets/` directory.
-- Media is a bind mount `./data/media:/data/media`. Receipts are written to the directory from `RECEIPTS_DIR` (default `./data/receipts`), which is git-ignored; a Compose deployment mounts that path from a volume.
-- nginx overwrites `X-Forwarded-For` with `$remote_addr` so clients cannot spoof it.
-
-Stack: Java 27, Spring Boot 4.1.2, Spring Framework 7, Spring Security 7, Hibernate 7, Spring Cloud 2025.1.4, Testcontainers 2.x, Jackson 3, MySQL 8.4, Redis 7, Kafka (KRaft), React 19 (see UI rules), TypeScript, Vite, Arco Design, TanStack Query. Versions managed by the Spring BOMs are not hand-pinned.
-
-Resolved versions (filled in after the first successful build, from `mvn dependency:tree` and the Spring Boot 4.1.2 BOM): Hibernate ORM: 7.4.13.Final. Spring Kafka: 4.1.2. Kafka clients: 4.2.2. Testcontainers: 2.0.5. Jackson: 3.1.7 (Jackson 3). Frontend: Arco Design 2.66.18 on React 19.3.1 with Vite 8.3.6.
-
-## 15. Observability and CI
-
-- Micrometer metrics with a common `application` tag, exposed at `:9090/actuator/prometheus`. Prometheus scrapes each backend service as its own job. Metrics are never tagged with tenant id (cardinality).
-- Logging via SLF4J. Tokens, passwords and receipt contents are never logged.
-- GitHub Actions on push and pull request to `main`: backend (`mvn -B verify` with Testcontainers), frontend (`npm ci`, lint, test, build), docker (build images without pushing, `docker compose config -q`).
-
-## 16. Invariants that tests must prove
-
-- Tenant B admin cannot read or modify tenant A's course (404).
-- The same email can register in two tenants. A token used with the other tenant's Host gets 403.
-- STUDENT gets 403 on admin endpoints. An INSTRUCTOR cannot edit another instructor's course.
-- Approving a payment twice returns 409 and produces one event. A duplicate Kafka event creates one enrollment and one email.
-- Approval succeeds while Kafka is down, and the event is delivered after Kafka returns.
-- A student without enrollment gets 403 on the playback token. An expired playback token gets 401. Cross-lesson, cross-tenant and path-traversal file access fails.
-- A burst of login requests returns 429.
-- Reusing a rotated refresh token revokes all tokens of that user.
-- A suspended tenant cannot log in.
-- A receipt requested by another tenant's admin returns 404.
-- A file named `.pdf` with non-PDF content is rejected as a receipt.
-- An access token is rejected on media endpoints, and a playback token is rejected on the API.
-- A clean clone runs with one Compose command and CI is green.
-
-## 17. Known limitations
-
-- The shared `common` library couples releases of all services.
-- The Redis rate limiter fails open if Redis is down.
-- A suspended tenant's existing access tokens stay valid for up to 15 minutes.
-- Emails are at-least-once; a rare duplicate is possible.
-- Receipts and media are stored on local disk or a Docker volume, not object storage.
-- Streaming is content protection, not DRM.
-- All databases share one MySQL server in Compose.
-- Java 27 is a non-LTS release. A production deployment would pin an LTS (Java 25). Boot 4.1.x is a recent generation with fewer community examples.
-
-## 18. Future work
-
-MinIO for receipts and media, a real DRM provider behind a `StreamProvider` interface, Grafana dashboards, alerting on the outbox backlog and DLT depth, per-tenant rate limits, token revocation on tenant suspension, Google login.
+- Real DRM (needs a paid provider), card payments with a real gateway such as CMI (needs a merchant contract and a payout model), WhatsApp (needs a business account), e-mail verification, invitation e-mails, certificates, live classes, lesson progress tracking, coupon codes, video upload from mobile apps, multi-rendition adaptive streaming, object storage, refunds handled by the platform.
+- Known limits: local-disk storage, at-least-once e-mails, tokens of a suspended publisher valid up to 15 minutes, shared MySQL server, keys stored on disk, no virus scanning, Redis limiter fails open, Java 27 is a non-LTS release.
