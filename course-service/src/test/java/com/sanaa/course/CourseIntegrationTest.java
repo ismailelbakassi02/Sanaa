@@ -290,6 +290,22 @@ class CourseIntegrationTest {
                 .status()).isEqualTo(401);
     }
 
+    @Test
+    void temporaryPasswordTokenIsBlockedBeforeAnyControllerRuns() throws Exception {
+        String tenantId = newTenantId();
+        String token = mustChangeToken(tenantId, 100, Role.STUDENT);
+
+        HttpResult blocked = get("/api/enrollments/me", token);
+        assertThat(blocked.status()).isEqualTo(403);
+        assertThat(blocked.body()).contains("\"detail\":\"Password change required.\"");
+        assertThat(blocked.body()).doesNotContain("\"type\":null", "\"instance\":null",
+                "\"properties\":null", "Exception", "at com.sanaa");
+
+        // The same valid token keeps working after the restriction is lifted.
+        String normal = token(tenantId, 100, Role.STUDENT);
+        assertThat(get("/api/enrollments/me", normal).status()).isEqualTo(200);
+    }
+
     // ---------------------------------------------------------------- rules
 
     @Test
@@ -686,7 +702,15 @@ class CourseIntegrationTest {
         return body;
     }
 
+    private String mustChangeToken(String tenantId, long userId, Role role) {
+        return signedToken(tenantId, userId, role, true);
+    }
+
     private String token(String tenantId, long userId, Role role) {
+        return signedToken(tenantId, userId, role, false);
+    }
+
+    private String signedToken(String tenantId, long userId, Role role, boolean mustChangePassword) {
         try {
             JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                     .issuer(ISSUER)
@@ -697,7 +721,8 @@ class CourseIntegrationTest {
                     .jwtID(UUID.randomUUID().toString())
                     .claim("role", role.name())
                     .claim("email", "user" + userId + "@example.test")
-                    .claim("name", "Test User");
+                    .claim("name", "Test User")
+                    .claim("must_change_password", mustChangePassword);
             if (tenantId != null) {
                 claims.claim("tenant_id", tenantId);
             }

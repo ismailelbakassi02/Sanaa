@@ -12,6 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import com.sanaa.common.security.JwtClaims;
 import com.sanaa.common.security.JwtTenantFilter;
+import com.sanaa.common.security.MustChangePasswordFilter;
 
 @Configuration
 @EnableMethodSecurity
@@ -41,6 +42,9 @@ public class SecurityConfig {
         // The filter must run after bearer authentication, when the validated JWT is available.
         // Common auto-configuration creates the bean but disables plain servlet registration.
         JwtTenantFilter.addTo(http, jwtTenantFilter);
+        // Opt-in shared rule: a temporary-password session may only change its password or log out.
+        // Registered after the tenant filter, which is itself after bearer authentication.
+        http.addFilterAfter(new MustChangePasswordFilter(), JwtTenantFilter.class);
 
         return http.build();
     }

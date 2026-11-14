@@ -143,7 +143,7 @@ class MigrationV1ToV2Test {
      */
     private static void resetDatabase() {
         Flyway.configure()
-                .dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
+                .dataSource(jdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
                 .cleanDisabled(false)
                 .load()
                 .clean();
@@ -151,11 +151,20 @@ class MigrationV1ToV2Test {
 
     private static void migrateTo(MigrationVersion target) {
         Flyway.configure()
-                .dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
+                .dataSource(jdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
                 .locations("classpath:db/migration")
                 .target(target)
                 .load()
                 .migrate();
+    }
+
+    /**
+     * Disable TLS, as the other integration tests do. MySQL 8.4 generates a self-signed server
+     * certificate at startup, and a container clock that is ahead of the JVM makes that certificate
+     * "not yet valid"; the migration test does not need an encrypted local connection.
+     */
+    private static String jdbcUrl() {
+        return MYSQL.getJdbcUrl() + "?useSSL=false&allowPublicKeyRetrieval=true";
     }
 
     private static void seedV1() throws SQLException {
@@ -205,7 +214,7 @@ class MigrationV1ToV2Test {
     }
 
     private static Connection connection() throws SQLException {
-        return DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(),
+        return DriverManager.getConnection(jdbcUrl(), MYSQL.getUsername(),
                 MYSQL.getPassword());
     }
 

@@ -44,6 +44,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
@@ -66,6 +67,7 @@ import com.sanaa.auth.repository.MembershipRepository;
 import com.sanaa.auth.repository.ProfileRepository;
 import com.sanaa.auth.repository.TenantRepository;
 import com.sanaa.auth.repository.UserRepository;
+import com.sanaa.auth.service.AuditService;
 import com.sanaa.common.security.JwtClaims;
 import com.sanaa.common.tenant.TenantContext;
 
@@ -74,6 +76,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 
 /**
  * End-to-end HTTP tests for the v2 identity and publisher model against a real MySQL instance.
@@ -179,9 +185,13 @@ class AuthFlowIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @MockitoSpyBean
+    private AuditService auditService;
+
     @AfterEach
     void clearTenantContext() {
         TenantContext.clear();
+        reset(auditService);
     }
 
     // --------------------------------------------------------------- identity: registration
@@ -439,6 +449,36 @@ class AuthFlowIntegrationTest {
                 "publisherType", "INDIVIDUAL",
                 "publisherName", "Second Studio",
                 "slug", unique("second")), tokenOf(refreshed)), 409, "already belongs");
+    }
+
+    @Test
+    void aLoggedInLearnerCanCreateAnOrganizationPublisherAndManageItsTeam() throws Exception {
+        String email = unique("become-org") + "@example.local";
+        register(email, "Future Studio Owner");
+        HttpResult login = login(email, PASSWORD);
+        String slug = unique("logged-org");
+
+        HttpResult created = postJson("/api/auth/publishers", body(
+                "publisherType", "ORGANIZATION",
+                "publisherName", "Studio " + slug,
+                "slug", slug), tokenOf(login));
+        assertThat(created.status()).isEqualTo(201);
+        assertThat(json(created).get("type").asString()).isEqualTo("ORGANIZATION");
+
+        HttpResult refreshed = refresh(refreshCookie(login));
+        assertThat(refreshed.status()).isEqualTo(200);
+        Jwt jwt = jwtDecoder.decode(tokenOf(refreshed));
+        assertThat(jwt.getClaimAsString("role")).isEqualTo("TENANT_ADMIN");
+        assertThat(jwt.getClaimAsString("tenant_slug")).isEqualTo(slug);
+        assertThat(jwt.getClaimAsString("tenant_type")).isEqualTo("ORGANIZATION");
+
+        String token = tokenOf(refreshed);
+        assertThat(postJson("/api/auth/team", body(
+                "fullName", "Premier Enseignant",
+                "email", unique("first-teacher") + "@example.local",
+                "role", "INSTRUCTOR",
+                "temporaryPassword", PASSWORD), token).status()).isEqualTo(201);
+        assertThat(json(get("/api/auth/team", token)).size()).isEqualTo(2);
     }
 
     @Test
@@ -891,6 +931,97 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void teamListNeverContainsAnotherTenantsRows() throws Exception {
+        IsolationFixture fixture = isolationFixture();
+
+        JsonNode list = json(get("/api/auth/team", fixture.ownerBToken()));
+        assertThat(list.size()).isEqualTo(1);
+        assertThat(list.get(0).get("userId").asLong()).isEqualTo(fixture.ownerBId());
+        assertThat(get("/api/auth/team", fixture.ownerBToken()).body())
+                .doesNotContain(fixture.memberEmail());
+        // The tenant filter also applies to the repository behind the list, not only to the DTO.
+        assertThat(TenantContext.callAs(fixture.tenantBId(),
+                () -> membershipRepository.findByUserId(fixture.memberId()).isPresent())).isFalse();
+    }
+
+    @Test
+    void anotherTenantCannotDisableAMember() throws Exception {
+        IsolationFixture fixture = isolationFixture();
+
+        assertProblem(patchJson("/api/auth/team/" + fixture.memberId() + "/status",
+                body("status", "DISABLED"), fixture.ownerBToken()), 404, "not found");
+
+        assertThat(membershipOf(fixture.tenantAId(), fixture.memberId()).getStatus())
+                .isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(login(fixture.memberEmail(), PASSWORD).status()).isEqualTo(200);
+        // The failed attempt must not revoke the member's sessions either.
+        assertThat(refresh(fixture.memberCookie()).status()).isEqualTo(200);
+    }
+
+    @Test
+    void anotherTenantCannotEnableAMember() throws Exception {
+        IsolationFixture fixture = isolationFixture();
+        assertThat(patchJson("/api/auth/team/" + fixture.memberId() + "/status",
+                body("status", "DISABLED"), fixture.ownerAToken()).status()).isEqualTo(200);
+
+        assertProblem(patchJson("/api/auth/team/" + fixture.memberId() + "/status",
+                body("status", "ACTIVE"), fixture.ownerBToken()), 404, "not found");
+
+        assertThat(membershipOf(fixture.tenantAId(), fixture.memberId()).getStatus())
+                .isEqualTo(MembershipStatus.DISABLED);
+        assertProblem(refresh(fixture.memberCookie()), 401, "");
+    }
+
+    @Test
+    void anotherTenantCannotResetAMembersPassword() throws Exception {
+        IsolationFixture fixture = isolationFixture();
+
+        assertProblem(postJson("/api/auth/team/" + fixture.memberId() + "/reset-password",
+                body("temporaryPassword", NEW_PASSWORD), fixture.ownerBToken()), 404, "not found");
+
+        // The member keeps the password from A's invitation and the forged one never worked.
+        assertThat(login(fixture.memberEmail(), PASSWORD).status()).isEqualTo(200);
+        assertProblem(login(fixture.memberEmail(), NEW_PASSWORD), 401, "");
+    }
+
+    /**
+     * Publisher A with one invited member, plus an unrelated publisher B. Everything a cross-tenant
+     * test needs is created through the real HTTP API, so no fixture bypasses the tenant context.
+     */
+    private IsolationFixture isolationFixture() throws Exception {
+        String slugA = unique("iso-a");
+        String ownerAEmail = unique("iso-a-owner") + "@example.local";
+        createAnonymousPublisher(slugA, TenantType.ORGANIZATION, "Isolation A", ownerAEmail);
+        String ownerAToken = tokenOf(login(ownerAEmail, PASSWORD));
+
+        String memberEmail = unique("iso-member") + "@example.local";
+        HttpResult added = postJson("/api/auth/team", body(
+                "fullName", "Isolation Member",
+                "email", memberEmail,
+                "role", "INSTRUCTOR",
+                "temporaryPassword", PASSWORD), ownerAToken);
+        assertThat(added.status()).isEqualTo(201);
+        long memberId = json(added).get("userId").asLong();
+        String memberCookie = refreshCookie(login(memberEmail, PASSWORD));
+
+        String slugB = unique("iso-b");
+        String ownerBEmail = unique("iso-b-owner") + "@example.local";
+        createAnonymousPublisher(slugB, TenantType.ORGANIZATION, "Isolation B", ownerBEmail);
+        String ownerBToken = tokenOf(login(ownerBEmail, PASSWORD));
+        long ownerBId = Long.parseLong(jwtDecoder.decode(ownerBToken).getSubject());
+
+        Tenant tenantA = tenantRepository.findBySlug(slugA).orElseThrow();
+        Tenant tenantB = tenantRepository.findBySlug(slugB).orElseThrow();
+        return new IsolationFixture(ownerAToken, ownerBToken, ownerBId, tenantA.getId(),
+                tenantB.getId(), memberId, memberEmail, memberCookie);
+    }
+
+    private record IsolationFixture(String ownerAToken, String ownerBToken, long ownerBId,
+                                    String tenantAId, String tenantBId, long memberId,
+                                    String memberEmail, String memberCookie) {
+    }
+
+    @Test
     void disablingAMemberRevokesItsSessionsAndSelfDisableIsRefused() throws Exception {
         String slug = unique("disable");
         String ownerEmail = unique("disable-owner") + "@example.local";
@@ -1038,8 +1169,20 @@ class AuthFlowIntegrationTest {
         String ownerEmail = unique("admin-owner") + "@example.local";
         String slug = unique("admin-org");
         createAnonymousPublisher(slug, TenantType.ORGANIZATION, "Admin Studio", ownerEmail);
-        assertProblem(get("/api/admin/publishers", tokenOf(login(ownerEmail, PASSWORD))),
-                403, "");
+        String ownerToken = tokenOf(login(ownerEmail, PASSWORD));
+        assertProblem(get("/api/admin/publishers", ownerToken), 403, "");
+
+        String instructorEmail = unique("admin-teacher") + "@example.local";
+        assertThat(postJson("/api/auth/team", body(
+                "fullName", "Admin Teacher",
+                "email", instructorEmail,
+                "role", "INSTRUCTOR",
+                "temporaryPassword", PASSWORD), ownerToken).status()).isEqualTo(201);
+        String instructorToken = json(postJson("/api/auth/password", body(
+                "currentPassword", PASSWORD,
+                "newPassword", NEW_PASSWORD), tokenOf(login(instructorEmail, PASSWORD))))
+                .get("accessToken").asString();
+        assertProblem(get("/api/admin/users", instructorToken), 403, "");
 
         assertProblem(get("/api/admin/users", null), 401, "");
         assertThat(get("/api/admin/users", tokenOf(login(ADMIN_EMAIL, PASSWORD))).status())
@@ -1106,6 +1249,44 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void aFailedAuditInsertRollsBackTheAdminAction() throws Exception {
+        String superAdminToken = tokenOf(login(ADMIN_EMAIL, PASSWORD));
+        String email = unique("audit-rollback") + "@example.local";
+        register(email, "Audit Rollback");
+        long userId = userRepository.findByEmail(email).orElseThrow().getId();
+
+        // Fail closed: the audit row is part of the admin action's transaction, so an insert failure
+        // must undo the status change instead of leaving an unaudited modification.
+        doThrow(new IllegalStateException("audit insert failed"))
+                .when(auditService).record(any(), eq(AuditService.USER_STATUS_CHANGED),
+                        any(), any(), any(), any());
+        try {
+            HttpResult failed = patchJson("/api/admin/users/" + userId + "/status",
+                    body("status", "DISABLED", "reason", "test de transaction"), superAdminToken);
+            assertThat(failed.status()).isEqualTo(500);
+            assertThat(failed.body()).doesNotContain("audit insert failed", "IllegalStateException");
+        } finally {
+            reset(auditService);
+        }
+
+        assertThat(userRepository.findById(userId).orElseThrow().getStatus())
+                .isEqualTo(UserStatus.ACTIVE);
+        assertThat(login(email, PASSWORD).status()).isEqualTo(200);
+
+        // Once auditing works again the same action commits the change and exactly one audit row.
+        assertThat(patchJson("/api/admin/users/" + userId + "/status",
+                body("status", "DISABLED", "reason", "test de transaction"),
+                superAdminToken).status()).isEqualTo(200);
+        assertThat(userRepository.findById(userId).orElseThrow().getStatus())
+                .isEqualTo(UserStatus.DISABLED);
+        Integer audited = jdbcTemplate.queryForObject(
+                "select count(*) from admin_audit_log where action = 'USER_STATUS_CHANGED' "
+                        + "and target_id = ? and reason = ?",
+                Integer.class, Long.toString(userId), "test de transaction");
+        assertThat(audited).isEqualTo(1);
+    }
+
+    @Test
     void adminPublisherSuspensionRevokesSessionsAndPublishesAnEvent() throws Exception {
         String superAdminToken = tokenOf(login(ADMIN_EMAIL, PASSWORD));
         String slug = unique("moderated-pub");
@@ -1161,12 +1342,21 @@ class AuthFlowIntegrationTest {
                 .toList();
         assertThat(admins).hasSize(1);
         assertThat(admins.getFirst().getPlatformRole()).isEqualTo(PlatformRole.SUPER_ADMIN);
-        assertThat(jwtDecoder.decode(tokenOf(login(ADMIN_EMAIL, PASSWORD)))
-                .getClaimAsString("tenant_id")).isNull();
+        Jwt adminJwt = jwtDecoder.decode(tokenOf(login(ADMIN_EMAIL, PASSWORD)));
+        assertThat(adminJwt.getClaimAsString("role")).isEqualTo("SUPER_ADMIN");
+        assertThat(adminJwt.getClaimAsString("tenant_id")).isNull();
+        assertThat(adminJwt.getClaimAsString("tenant_slug")).isNull();
+        assertThat(adminJwt.getClaimAsString("tenant_type")).isNull();
+        assertThat((Boolean) adminJwt.getClaim(JwtClaims.MUST_CHANGE_PASSWORD)).isFalse();
         assertThat(managementPort).isNotEqualTo(port);
     }
 
     // ----------------------------------------------------------------------- helpers
+
+    private Membership membershipOf(String tenantId, long userId) {
+        return TenantContext.callAs(tenantId,
+                () -> membershipRepository.findByUserId(userId).orElseThrow());
+    }
 
     private int auditCount(String action) {
         Integer count = jdbcTemplate.queryForObject(

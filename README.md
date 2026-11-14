@@ -113,6 +113,25 @@ database created by an earlier version still contains the previous demo tenant a
 current ones; start from a clean volume to get exactly the accounts above. The MySQL initialization
 script also runs only on an empty volume. See the reset procedure below.
 
+### Audit triggers and binary logging
+
+`V2__publisher_model.sql` creates the append-only `admin_audit_log` triggers. MySQL 8 has binary
+logging on by default (`log_bin=ON`), and creating a trigger in that mode normally needs `SUPER` or
+`log_bin_trust_function_creators=1`. SANAA's service users are not `SUPER`, so the server must trust
+trigger creation:
+
+- Compose: `docker/docker-compose.yml` starts MySQL with
+  `command: ["--log-bin-trust-function-creators=1"]`.
+- Testcontainers: `AuthFlowIntegrationTest` and `OutboxKafkaIntegrationTest`, which apply the V2
+  migration, call `.withCommand("--log-bin-trust-function-creators=1")` on the `mysql:8.4`
+  container.
+- A production server must set the same option (or give the migration user `SUPER`) before Flyway
+  runs, otherwise the migration fails.
+
+Auditing fails closed: `AuditService.record` writes the `admin_audit_log` row in the same
+transaction as the admin write or personal-data read. If the insert fails, the action fails with a
+500 `ProblemDetail` and nothing is persisted.
+
 ## Démarrage local sous Windows
 
 Les scripts `scripts/dev-start.ps1` et `scripts/dev-stop.ps1` sont compatibles PowerShell 5.1. Ils
@@ -274,6 +293,11 @@ Public routes are `POST /api/auth/login|register|refresh|logout`, `POST /api/aut
 signed card callback. Publisher creation has its own stricter policy. A session whose
 `must_change_password` claim is true can only call `POST /api/auth/password` and
 `POST /api/auth/logout`; every other routed path returns 403 with a `ProblemDetail`.
+
+The gateway enforces that rule at the edge, and the servlet services enforce it again:
+`com.sanaa.common.security.MustChangePasswordFilter` is registered opt-in in the security chain of
+auth-service, course-service and payment-service, after bearer authentication. A service called
+directly therefore applies the same rule and the same five-field problem body.
 
 When Redis is unavailable, rate limiting fails open: requests are routed and the gateway logs
 `Error calling rate limiter lua`. Token validation and routing still apply. See

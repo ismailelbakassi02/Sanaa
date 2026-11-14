@@ -89,6 +89,13 @@ claims. A disabled user cannot log in or refresh.
   `POST /api/auth/logout` returns 403. The rule is enforced in auth-service and again in the
   gateway.
 
+  The servlet rule is not copied per service: `com.sanaa.common.security.MustChangePasswordFilter`
+  is registered opt-in in the security chain of auth-service, course-service and payment-service,
+  after bearer authentication (and after `JwtTenantFilter`). Each service writes the same five-field
+  RFC 7807 body, and a new endpoint cannot forget the rule because the filter runs before the
+  controller. The gateway keeps its reactive global filter, because a restricted session must be
+  stopped at the edge before it is routed.
+
 Anonymous publisher creation is `POST /api/auth/publishers`. It accepts owner name, email and
 password together with the publisher data, and creates the publisher, the owner account, the
 membership and the outbox row in one transaction. A logged-in learner can call the same endpoint
@@ -134,6 +141,13 @@ write and every personal-data read, with filters on actor, action, target and da
 
 `admin_audit_log` is append-only: database triggers reject `UPDATE` and `DELETE`, not only the
 service code.
+
+Auditing fails closed. `AuditService.record` inserts the row in the caller's transaction, so the
+audit row and the admin write (or the personal-data read it records) commit or roll back together.
+If the insert fails, the admin action fails with a 500 `ProblemDetail` and no change is persisted:
+an unaudited modification is never accepted. The integration test
+`AuthFlowIntegrationTest#aFailedAuditInsertRollsBackTheAdminAction` proves it with a spy that throws
+on `record`.
 
 ### 8. Outbox and events
 
@@ -205,9 +219,23 @@ migration:
 - makes `refresh_tokens.tenant_id` nullable, because a learner has no tenant;
 - creates the append-only audit triggers.
 
-MySQL enables binary logging by default, so the server needs
-`log-bin-trust-function-creators=1` for the non-SUPER service user to create the triggers. The
-Compose service and every Testcontainers MySQL instance set it.
+MySQL 8 enables binary logging by default (`log_bin=ON`). Creating a trigger while binary logging
+is on normally requires `SUPER` or `log_bin_trust_function_creators=1`; the SANAA service users are
+deliberately not `SUPER`, so the server must trust their trigger creation. Set it globally
+(`SET GLOBAL log_bin_trust_function_creators = 1`, which needs `SUPER` or
+`SYSTEM_VARIABLES_ADMIN`), or start the server with `--log-bin-trust-function-creators=1`.
+
+Both local paths do the latter:
+
+- Compose: `docker/docker-compose.yml` starts MySQL with
+  `command: ["--log-bin-trust-function-creators=1"]`.
+- Testcontainers: the tests that run the V2 migration and therefore create the triggers
+  (`AuthFlowIntegrationTest`, `OutboxKafkaIntegrationTest`) use
+  `.withCommand("--log-bin-trust-function-creators=1")` on the `mysql:8.4` container. Tests that do
+  not create triggers do not need the flag.
+
+A production MySQL must set the same option (or grant the migration user `SUPER`/the needed
+dynamic privilege) before Flyway applies `V2__publisher_model.sql`; otherwise the migration fails.
 
 ## Consequences
 

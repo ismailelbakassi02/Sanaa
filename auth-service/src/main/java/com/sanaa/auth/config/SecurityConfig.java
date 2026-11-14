@@ -15,6 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import com.sanaa.common.security.JwtClaims;
 import com.sanaa.common.security.JwtTenantFilter;
+import com.sanaa.common.security.MustChangePasswordFilter;
 
 /**
  * Stateless resource server.
@@ -65,7 +66,8 @@ public class SecurityConfig {
                         .accessDeniedHandler(securityProblemSupport));
 
         // The tenant must be present before a transaction opens; the password restriction runs
-        // after it so both act on the same validated token.
+        // after it so both act on the same validated token. The filter itself lives in common so
+        // every service enforces the identical rule.
         JwtTenantFilter.addTo(http, jwtTenantFilter);
         http.addFilterAfter(new MustChangePasswordFilter(), JwtTenantFilter.class);
 
