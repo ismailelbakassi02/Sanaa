@@ -16,6 +16,13 @@ import org.springframework.security.web.SecurityFilterChain;
 import com.sanaa.common.security.JwtClaims;
 import com.sanaa.common.security.JwtTenantFilter;
 
+/**
+ * Stateless resource server.
+ *
+ * <p>Public surface: login, register, refresh, logout, anonymous publisher creation, slug check,
+ * public pages and JWKS. Team management and the publisher profile are TENANT_ADMIN, platform
+ * oversight is SUPER_ADMIN. A temporary-password session is restricted by the filter below.
+ */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -39,11 +46,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/register", "/api/auth/login",
-                                "/api/auth/refresh", "/api/auth/logout").permitAll()
+                                "/api/auth/refresh", "/api/auth/logout",
+                                "/api/auth/publishers").permitAll()
                         .requestMatchers(HttpMethod.GET,
-                                "/api/auth/tenants/*/branding",
+                                "/api/auth/publishers/slug-available",
+                                "/api/public/**",
                                 "/.well-known/jwks.json").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/auth/team", "/api/auth/team/**",
+                                "/api/auth/publishers/me").hasRole("TENANT_ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(securityProblemSupport)
@@ -52,9 +64,10 @@ public class SecurityConfig {
                         .authenticationEntryPoint(securityProblemSupport)
                         .accessDeniedHandler(securityProblemSupport));
 
-        // The filter must run after bearer authentication, when the validated JWT is available.
-        // Common auto-configuration creates the bean but disables plain servlet registration.
+        // The tenant must be present before a transaction opens; the password restriction runs
+        // after it so both act on the same validated token.
         JwtTenantFilter.addTo(http, jwtTenantFilter);
+        http.addFilterAfter(new MustChangePasswordFilter(), JwtTenantFilter.class);
 
         return http.build();
     }

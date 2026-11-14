@@ -54,7 +54,10 @@ public class JwtTenantFilter extends OncePerRequestFilter {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication instanceof JwtAuthenticationToken jwtAuthentication) {
-            String tenantId = jwtAuthentication.getToken().getClaimAsString(JwtClaims.TENANT_ID);
+            // Learners and SUPER_ADMIN have no tenant. A missing, blank or non-string claim must
+            // leave the context unset instead of failing the request: there is simply nothing
+            // tenant-scoped they may read.
+            String tenantId = readTenantId(jwtAuthentication);
             TenantContext.set(tenantId);
             try {
                 filterChain.doFilter(request, response);
@@ -64,5 +67,15 @@ public class JwtTenantFilter extends OncePerRequestFilter {
             return;
         }
         filterChain.doFilter(request, response);
+    }
+
+    private static String readTenantId(JwtAuthenticationToken authentication) {
+        // Read the raw claim: getClaimAsString() coerces numbers and other values to a string,
+        // which would put a value the issuer never meant as a tenant id into the context.
+        Object claim = authentication.getToken().getClaim(JwtClaims.TENANT_ID);
+        if (claim instanceof String tenantId && !tenantId.isBlank()) {
+            return tenantId;
+        }
+        return null;
     }
 }

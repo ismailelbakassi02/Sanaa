@@ -1,7 +1,13 @@
 # ADR 003: Authentication tokens, refresh rotation and cookies
 
-- Status: Accepted
+- Status: Partially superseded by [ADR 010](010-publisher-model.md)
 - Date: 2026-11-07
+
+> The token format, refresh rotation, cookie attributes, CSRF reasoning and RS256/JWKS decisions
+> still apply. The identity model does not: users are global, there is no `tenantSlug` on login or
+> register, `tenant_id` is optional in a token, the role claim is derived from a membership, and the
+> platform tenant and its administration endpoints are gone. The claims list and the administration
+> sections below are superseded by ADR 010.
 
 ## Context
 

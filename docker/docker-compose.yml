@@ -15,6 +15,9 @@ services:
       NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
     ports:
       - "127.0.0.1:3306:3306"
+    # V2 creates append-only audit triggers. MySQL enables binary logging by default, and the
+    # service users are deliberately not SUPER, so the server must trust their trigger creation.
+    command: ["--log-bin-trust-function-creators=1"]
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d:ro

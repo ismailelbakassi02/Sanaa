@@ -12,8 +12,8 @@ actually implemented today.
 | Module | Status | Scope |
 |---|---|---|
 | `common` | Done | Tenant context and `@TenantId`, JWT claims, role model, JSON event envelope |
-| `auth-service` | Done | Register, login, refresh rotation, logout, JWKS, branding, tenant administration, platform bootstrap, demo seed |
-| `gateway` | Done | JWT validation, routing, Redis rate limits, header sanitization, Host-vs-tenant check |
+| `auth-service` | Done | Global accounts, publisher onboarding, refresh rotation, team and profile management, images, public publisher pages, platform administration and audit, outbox publisher |
+| `gateway` | Done | JWT validation, routing by owning service, Redis rate limits, header sanitization |
 | `course-service` | In progress | Courses, modules, lessons, enrollment read model; media, playback and payment-event consumer pending |
 | `payment-service` | In progress | Submission with receipt upload, review workflow, transactional outbox; Kafka publisher and enrollment consumer pending |
 | `notification-service` | Planned | Kafka consumers and email delivery |
@@ -71,7 +71,7 @@ Build and test the backend:
 mvn -B verify
 ```
 
-Start auth-service with the `demo` profile. The profile creates the demo tenants and accounts and
+Start auth-service with the `demo` profile. The profile creates the demo publishers and accounts and
 requires `DEMO_PASSWORD` to be set:
 
 ```sh
@@ -88,25 +88,25 @@ set -a; . ./.env; set +a
 MANAGEMENT_SERVER_PORT=9080 java -jar gateway/target/gateway-0.0.1-SNAPSHOT.jar
 ```
 
-Platform bootstrap runs by default and requires a real `PLATFORM_ADMIN_PASSWORD`; the example
+Platform bootstrap runs by default and creates one global `SUPER_ADMIN` from
+`PLATFORM_ADMIN_EMAIL`, `PLATFORM_ADMIN_NAME` and a real `PLATFORM_ADMIN_PASSWORD`; the example
 placeholder is rejected outside the `dev` profile. Set `PLATFORM_BOOTSTRAP_ENABLED=false` when no
-platform super admin is needed.
+platform super admin is needed. A bootstrap email that already belongs to a non-admin account fails
+startup instead of promoting it silently.
 
 Demo accounts, all using the password from `DEMO_PASSWORD`:
 
-| Tenant | Email | Role |
+| Publisher | Email | Role |
 |---|---|---|
-| atlas | admin@atlas.local | TENANT_ADMIN |
-| atlas | instructor@atlas.local | INSTRUCTOR |
-| atlas | student1@atlas.local | STUDENT |
-| atlas | student2@atlas.local | STUDENT |
-| acme | admin@acme.local | TENANT_ADMIN |
-| acme | instructor@acme.local | INSTRUCTOR |
-| acme | student1@acme.local | STUDENT |
-| acme | student2@acme.local | STUDENT |
+| atlas (organization) | admin@atlas.local | TENANT_ADMIN |
+| atlas (organization) | instructor1@atlas.local | INSTRUCTOR |
+| atlas (organization) | instructor2@atlas.local | INSTRUCTOR |
+| acme (individual) | admin@acme.local | TENANT_ADMIN |
+| none (global learners) | learner1@example.local to learner4@example.local | STUDENT |
 
-The demo tenants are "Atlas Academy" and "Acme Academy", with the distinct primary colors
-`#00B42A` and `#722ED1`.
+The demo publishers are "Atlas Academy" (`ORGANIZATION`) and "Studio Acme" (`INDIVIDUAL`), with the
+primary colors `#00B42A` and `#722ED1`. A learner has no publisher: the same account can follow
+courses from both.
 
 The seed is idempotent by slug, so it never renames or removes rows that already exist. A local
 database created by an earlier version still contains the previous demo tenant alongside the
@@ -147,9 +147,18 @@ leurs PID dans `logs/`, attend que les quatre endpoints de santé répondent, pu
 et les comptes de démonstration sans les mots de passe.
 
 payment-service stocke les justificatifs sur le disque local, sous `data/receipts` par défaut
-(variable `RECEIPTS_DIR`). Le dossier est créé au premier dépôt et reste ignoré par Git. Il lit le
-prix, le titre et la devise d'un cours auprès de course-service (`COURSE_SERVICE_URL`, par défaut
-`http://localhost:8082`).
+(variable `RECEIPTS_DIR`). auth-service stocke les avatars et les logos sous `data/images` par défaut
+(variable `IMAGES_DIR`, `sanaa.images.directory` côté Spring). Les deux dossiers sont créés au premier
+dépôt et restent ignorés par Git ; en production, ils doivent pointer vers un volume persistant ou
+un stockage objet. payment-service lit le prix, le titre et la devise d'un cours auprès de
+course-service (`COURSE_SERVICE_URL`, par défaut `http://localhost:8082`).
+
+auth-service publie ses changements de publisher par un outbox transactionnel : l'API écrit la ligne
+dans MySQL dans la même transaction que la modification, puis un ordonnanceur la publie sur
+`sanaa.publishers.v1`. La jauge `sanaa_outbox_unpublished` (actuator) indique le retard. Comme pour
+les paiements, Kafka peut être arrêté : la requête répond normalement et le message part au retour du
+broker. Le poller se désactive avec `OUTBOX_POLLER_ENABLED=false`, ce que font les tests qui ne
+testent pas Kafka.
 
 Les événements de paiement passent par Kafka. À l'approbation, payment-service écrit l'événement
 dans sa table outbox dans la même transaction que le paiement, puis un ordonnanceur le publie sur
@@ -162,11 +171,16 @@ Si Kafka est arrêté, l'approbation répond quand même 200 : l'événement res
 publié au redémarrage du broker, donc l'inscription arrive avec un peu de retard.
 
 Avec `-Seed`, `dev-start.ps1` exécute ensuite `scripts/seed-demo.ps1`. Ce script lit
-`DEMO_PASSWORD` dans `.env`, se connecte au gateway en tant que `instructor@atlas.local` et
-`instructor@acme.local`, crée les cours, modules et leçons décrits dans
-`scripts/demo-courses.json`, puis publie les cours marqués `PUBLISHED`. Il n'affiche jamais les
-jetons d'accès, affiche un tableau récapitulatif et renvoie un code de sortie non nul en cas
-d'erreur.
+`DEMO_PASSWORD` dans `.env` et se connecte au gateway en tant qu'instructeur. Il crée les cours,
+modules et leçons décrits dans `scripts/demo-courses.json`, puis publie les cours marqués
+`PUBLISHED`. Il n'affiche jamais les jetons d'accès, affiche un tableau récapitulatif et renvoie un
+code de sortie non nul en cas d'erreur.
+
+> Le modèle d'identité v2 est arrivé avant la mise à jour du script : `seed-demo.ps1` envoie encore
+> `tenantSlug` à la connexion et utilise l'ancien compte `instructor@acme.local`, supprimé du jeu de
+> démonstration. Il peut donc échouer jusqu'à la tâche course-service, qui le réécrit avec les
+> nouveaux comptes `instructor1@atlas.local` et `admin@acme.local` et sans `tenantSlug`. Le reste de
+> la pile (authentification, publishers, pages publiques) fonctionne sans lui.
 
 Le script est idempotent : un cours dont le titre existe déjà pour cet instructeur est ignoré, ce
 qui permet de relancer `-Seed` ou `seed-demo.ps1` sans créer de doublon.
@@ -187,6 +201,11 @@ aussi être lancé seul, une fois la pile démarrée :
 ```
 
 ## Lancer le frontend
+
+> Le dossier `client` est encore l'application v1 : elle choisit une organisation avant la connexion
+> et envoie `tenantSlug` au gateway. Avec l'API v2 (connexion par e-mail et mot de passe, sans
+> organisation), la connexion ne fonctionnera pas tant que la tâche frontend n'aura pas réécrit ce
+> dossier. C'est attendu ; le reste du parcours se vérifie avec `curl.exe` ou un client HTTP.
 
 Prérequis : Node 20.19 ou plus récent (Node 24 est utilisé en intégration continue) et npm. Le
 gateway doit écouter sur `http://localhost:8080`.
@@ -217,9 +236,10 @@ Ouvrir ensuite :
 Le paramètre `?tenant=` est conservé lors des redirections internes (connexion vers l'accueil,
 déconnexion, garde d'authentification), donc un rechargement sur `/?tenant=atlas` reste valide.
 
-Le serveur de développement conserve l'en-tête `Host` (`changeOrigin: false`) : le gateway compare
-le sous-domaine avec l'organisation du jeton. Il ajoute aussi les en-têtes `X-Forwarded-*`
-(`xfwd: true`) pour la limitation de débit par adresse IP.
+Le serveur de développement conserve l'en-tête `Host` (`changeOrigin: false`) : dans la version v1,
+le gateway comparait le sous-domaine avec l'organisation du jeton. Le gateway v2 ne fait plus cette
+comparaison, puisque les pages publiques utilisent un slug dans l'URL. Vite ajoute aussi les en-têtes
+`X-Forwarded-*` (`xfwd: true`) pour la limitation de débit par adresse IP.
 
 Vérifications locales :
 
@@ -244,10 +264,17 @@ auth-service with the `demo` profile again afterwards.
 
 ## Gateway notes
 
-The gateway validates the access token, strips inbound `X-Tenant*` and `X-User*` headers, rate
-limits by client IP or `tenant_id:sub`, and rejects a request whose `Host` subdomain does not match
-the token's `tenant_slug`. nginx must keep sending `proxy_set_header Host $host` for that check.
+The gateway validates the access token, strips inbound `X-Tenant*` and `X-User*` headers, and rate
+limits by client IP (public routes), by `sub` (authenticated routes) or by client IP and lesson
+(media). There is no `Host`-versus-tenant check any more: a publisher is selected by slug in the
+public URL, not by subdomain, so nginx does not need to preserve a special `Host` value.
+
+Public routes are `POST /api/auth/login|register|refresh|logout`, `POST /api/auth/publishers`,
+`GET /api/auth/publishers/slug-available` and `GET /api/public/**`, plus media playback and the
+signed card callback. Publisher creation has its own stricter policy. A session whose
+`must_change_password` claim is true can only call `POST /api/auth/password` and
+`POST /api/auth/logout`; every other routed path returns 403 with a `ProblemDetail`.
 
 When Redis is unavailable, rate limiting fails open: requests are routed and the gateway logs
-`Error calling rate limiter lua`. Token validation, routing and the Host check still apply. See
-`docs/adr/004-gateway.md`.
+`Error calling rate limiter lua`. Token validation and routing still apply. See
+`docs/adr/004-gateway.md` and `docs/adr/010-publisher-model.md`.

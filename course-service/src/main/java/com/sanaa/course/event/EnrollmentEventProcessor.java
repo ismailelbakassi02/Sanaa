@@ -41,7 +41,7 @@ public class EnrollmentEventProcessor {
     }
 
     @Transactional
-    public EventProcessingOutcome process(EventEnvelope envelope) {
+    public EventProcessingOutcome process(EventEnvelope<PaymentEventPayload> envelope) {
         if (processedEventRepository.markProcessed(envelope.eventId()) == 0) {
             return EventProcessingOutcome.DUPLICATE;
         }

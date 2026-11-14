@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.sanaa.auth.service.AuthFacade;
 import com.sanaa.auth.service.AuthResult;
 import com.sanaa.auth.service.RefreshCookieService;
+import com.sanaa.auth.web.dto.ChangePasswordRequest;
 import com.sanaa.auth.web.dto.LoginRequest;
 import com.sanaa.auth.web.dto.LoginResponse;
 import com.sanaa.auth.web.dto.MeResponse;
@@ -73,5 +74,19 @@ public class AuthController {
     @GetMapping("/me")
     public MeResponse me(@AuthenticationPrincipal Jwt jwt) {
         return authFacade.me(jwt);
+    }
+
+    /**
+     * Available even when {@code must_change_password} is true. A successful change returns a new
+     * access token and refresh cookie, so the caller leaves the restricted state immediately.
+     */
+    @PostMapping("/password")
+    public ResponseEntity<LoginResponse> changePassword(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        AuthResult result = authFacade.changePassword(AuthFacade.userId(jwt), request);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookieService.issue(result.refreshToken()))
+                .body(result.response());
     }
 }

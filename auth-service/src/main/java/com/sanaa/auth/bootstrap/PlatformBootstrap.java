@@ -9,8 +9,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.sanaa.auth.config.BootstrapProperties;
-import com.sanaa.auth.domain.Tenant;
-import com.sanaa.common.tenant.TenantContext;
 
 /**
  * Idempotent platform bootstrap.
@@ -57,16 +55,13 @@ public class PlatformBootstrap implements ApplicationRunner {
             throw new IllegalStateException(
                     "PLATFORM_ADMIN_PASSWORD still uses the .env.example placeholder");
         }
-        if (!StringUtils.hasText(properties.tenantName())
-                || !StringUtils.hasText(properties.adminEmail())
+        if (!StringUtils.hasText(properties.adminEmail())
                 || !StringUtils.hasText(properties.adminName())) {
             throw new IllegalStateException(
-                    "Platform tenant name, admin email and admin name must be configured");
+                    "PLATFORM_ADMIN_EMAIL and PLATFORM_ADMIN_NAME must be configured");
         }
 
-        Tenant tenant = bootstrapService.ensurePlatformTenant(properties);
-        TenantContext.runAs(tenant.getId(),
-                () -> bootstrapService.ensurePlatformAdmin(tenant.getId(), properties));
-        log.info("Platform tenant '{}' is ready", tenant.getSlug());
+        bootstrapService.ensureSuperAdmin(properties);
+        log.info("Platform SUPER_ADMIN account '{}' is ready", properties.adminEmail());
     }
 }

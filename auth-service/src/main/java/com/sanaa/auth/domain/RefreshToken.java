@@ -17,9 +17,10 @@ import org.hibernate.type.SqlTypes;
  * An opaque refresh token.
  *
  * <p>WHY there is no {@code @TenantId} here: refresh and logout receive only the cookie, so the row
- * has to be found by its hash before a tenant is known. {@code tenant_id} is therefore a normal
- * column, and the facade sets {@link com.sanaa.common.tenant.TenantContext} from the row before any
- * tenant-owned work starts. The token value itself is never stored; only its SHA-256 hash is.
+ * has to be found by its hash before a publisher is known. {@code tenant_id} is therefore a normal
+ * column, nullable because a learner has no publisher, and the facade sets
+ * {@link com.sanaa.common.tenant.TenantContext} from the row before any tenant-owned work starts.
+ * The token value itself is never stored; only its SHA-256 hash is.
  */
 @Entity
 @Table(name = "refresh_tokens")
@@ -30,7 +31,7 @@ public class RefreshToken {
     private Long id;
 
     @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "tenant_id", nullable = false, updatable = false, length = 36)
+    @Column(name = "tenant_id", updatable = false, length = 36)
     private String tenantId;
 
     @Column(name = "user_id", nullable = false, updatable = false)

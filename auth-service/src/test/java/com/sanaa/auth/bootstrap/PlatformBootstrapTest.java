@@ -57,7 +57,7 @@ class PlatformBootstrapTest {
     }
 
     private static BootstrapProperties properties(String adminPassword) {
-        return new BootstrapProperties(true, "platform", "Platform", "admin@platform.local",
-                adminPassword, "Platform Admin");
+        return new BootstrapProperties(true, "admin@platform.local", adminPassword,
+                "Platform Admin");
     }
 }

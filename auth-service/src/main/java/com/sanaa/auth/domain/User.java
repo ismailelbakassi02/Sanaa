@@ -12,16 +12,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.TenantId;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.type.SqlTypes;
-
-import com.sanaa.common.security.Role;
 
 /**
- * A tenant-owned user. Hibernate fills {@code tenantId} from {@code TenantContext} on insert and
- * filters every find/query by it, so the application never passes a tenant id to a repository.
+ * A global user. NOT tenant-scoped: the same email can only exist once on the platform, and login
+ * happens before any publisher is known.
  */
 @Entity
 @Table(name = "users")
@@ -30,11 +25,6 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @TenantId
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "tenant_id", nullable = false, updatable = false, length = 36)
-    private String tenantId;
 
     @Column(name = "email", nullable = false, length = 255)
     private String email;
@@ -46,12 +36,15 @@ public class User {
     private String fullName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 32)
-    private Role role;
+    @Column(name = "platform_role", nullable = false, length = 16)
+    private PlatformRole platformRole;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
     private UserStatus status;
+
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -64,20 +57,17 @@ public class User {
     protected User() {
     }
 
-    public User(String email, String passwordHash, String fullName, Role role) {
+    public User(String email, String passwordHash, String fullName, PlatformRole platformRole) {
         this.email = email;
         this.passwordHash = passwordHash;
         this.fullName = fullName;
-        this.role = role;
+        this.platformRole = platformRole;
         this.status = UserStatus.ACTIVE;
+        this.mustChangePassword = false;
     }
 
     public Long getId() {
         return id;
-    }
-
-    public String getTenantId() {
-        return tenantId;
     }
 
     public String getEmail() {
@@ -92,15 +82,36 @@ public class User {
         return fullName;
     }
 
-    public Role getRole() {
-        return role;
+    public PlatformRole getPlatformRole() {
+        return platformRole;
     }
 
     public UserStatus getStatus() {
         return status;
     }
 
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void requirePasswordChange() {
+        this.mustChangePassword = true;
+    }
+
+    public void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+        this.mustChangePassword = false;
+    }
+
     public void changeStatus(UserStatus status) {
         this.status = status;
+    }
+
+    public void changeFullName(String fullName) {
+        this.fullName = fullName;
     }
 }

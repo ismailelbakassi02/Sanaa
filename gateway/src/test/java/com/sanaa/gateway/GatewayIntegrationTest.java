@@ -38,6 +38,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * End-to-end tests for the gateway: real WebFlux server, real Redis (Testcontainers), stub
  * upstreams and a stub JWKS endpoint.
+ *
+ * <p>The v2 routes are split by owner: auth-service owns identity, publishers and admin identity
+ * routes, course-service owns catalogue, studio and learner routes, payment-service owns money,
+ * and the support routes go to port 8085. The tests assert each prefix reaches the right stub.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -54,6 +58,7 @@ class GatewayIntegrationTest {
     private static final StubUpstream AUTH;
     private static final StubUpstream COURSE;
     private static final StubUpstream PAYMENT;
+    private static final StubUpstream SUPPORT;
     private static final StubUpstream JWKS;
 
     static {
@@ -61,6 +66,7 @@ class GatewayIntegrationTest {
         AUTH = StubUpstream.service("auth");
         COURSE = StubUpstream.service("course");
         PAYMENT = StubUpstream.service("payment");
+        SUPPORT = StubUpstream.service("support");
         JWKS = StubUpstream.json(TOKENS.jwksJson());
     }
 
@@ -71,6 +77,7 @@ class GatewayIntegrationTest {
         registry.add("AUTH_SERVICE_URI", AUTH::uri);
         registry.add("COURSE_SERVICE_URI", COURSE::uri);
         registry.add("PAYMENT_SERVICE_URI", PAYMENT::uri);
+        registry.add("SUPPORT_SERVICE_URI", SUPPORT::uri);
         registry.add("AUTH_JWKS_URI", () -> JWKS.uri() + "/jwks.json");
         // A random management port lets the test assert that 9090 is not the application port.
         registry.add("management.server.port", () -> 0);
@@ -89,6 +96,7 @@ class GatewayIntegrationTest {
         AUTH.close();
         COURSE.close();
         PAYMENT.close();
+        SUPPORT.close();
         JWKS.close();
         REDIS.stop();
     }
@@ -102,6 +110,7 @@ class GatewayIntegrationTest {
         AUTH.clear();
         COURSE.clear();
         PAYMENT.clear();
+        SUPPORT.clear();
     }
 
     // ---------------------------------------------------------------- startup
@@ -169,9 +178,13 @@ class GatewayIntegrationTest {
     // ---------------------------------------------------------------- routing
 
     @Test
-    void routesAuthAndPlatformPathsToAuthService() {
-        String token = TOKENS.validToken(TestTokens.TENANT_SLUG, "user-auth");
-        for (String path : List.of("/api/auth/me", "/api/platform/tenants")) {
+    void routesAuthIdentityAndPublisherPathsToAuthService() {
+        String token = TOKENS.publisherToken("user-auth", "TENANT_ADMIN");
+        for (String path : List.of(
+                "/api/auth/me",
+                "/api/auth/profile",
+                "/api/auth/team",
+                "/api/auth/publishers/me")) {
             get(path, token).expectStatus().isOk()
                     .expectBody(String.class)
                     .value(body -> assertThat(body).contains("\"service\":\"auth\""));
@@ -181,7 +194,7 @@ class GatewayIntegrationTest {
 
     @Test
     void routesCoursePathsToCourseService() {
-        String token = TOKENS.validToken(TestTokens.TENANT_SLUG, "user-course");
+        String token = TOKENS.learnerToken("user-course");
         for (String path : List.of(
                 "/api/courses/1",
                 "/api/modules/1",
@@ -196,16 +209,106 @@ class GatewayIntegrationTest {
 
     @Test
     void routesPaymentsToPaymentService() {
-        String token = TOKENS.validToken(TestTokens.TENANT_SLUG, "user-payment");
-        get("/api/payments/invoices", token).expectStatus().isOk()
+        get("/api/payments/invoices", TOKENS.learnerToken("user-payment"))
+                .expectStatus().isOk()
                 .expectBody(String.class)
                 .value(body -> assertThat(body).contains("\"service\":\"payment\""));
         assertThat(PAYMENT.requestCount()).isEqualTo(1);
     }
 
     @Test
+    void routesLearnerAndStudioPathsToTheOwningService() {
+        String token = TOKENS.publisherToken("user-studio", "INSTRUCTOR");
+
+        get("/api/learner/courses", TOKENS.learnerToken("user-learner"))
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"course\""));
+
+        for (String path : List.of(
+                "/api/studio/courses/1",
+                "/api/studio/lessons/1",
+                "/api/studio/reviews",
+                "/api/studio/stats")) {
+            get(path, token).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"course\""));
+        }
+        for (String path : List.of(
+                "/api/studio/payments/1",
+                "/api/studio/payment-settings")) {
+            get(path, token).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"payment\""));
+        }
+    }
+
+    @Test
+    void routesAdminPathsToTheServiceThatOwnsTheResource() {
+        String token = TOKENS.token(claims -> claims
+                .subject("super-admin")
+                .claim(JwtClaims.ROLE, "SUPER_ADMIN"));
+
+        for (String path : List.of(
+                "/api/admin/users",
+                "/api/admin/publishers",
+                "/api/admin/audit/auth")) {
+            get(path, token).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"auth\""));
+        }
+        for (String path : List.of(
+                "/api/admin/courses/1",
+                "/api/admin/reviews/1",
+                "/api/admin/stats",
+                "/api/admin/audit/course")) {
+            get(path, token).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"course\""));
+        }
+        for (String path : List.of(
+                "/api/admin/payments/1",
+                "/api/admin/audit/payment")) {
+            get(path, token).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"payment\""));
+        }
+    }
+
+    @Test
+    void routesComplaintPathsToTheSupportService() {
+        String token = TOKENS.learnerToken("user-support");
+        for (String path : List.of(
+                "/api/complaints",
+                "/api/studio/complaints",
+                "/api/admin/complaints",
+                "/api/admin/audit/support")) {
+            get(path, token).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"support\""));
+        }
+        assertThat(AUTH.requestCount()).isZero();
+        assertThat(COURSE.requestCount()).isZero();
+    }
+
+    @Test
+    void routesPublicPublisherInstructorAndImagePagesToAuthService() {
+        for (String path : List.of(
+                "/api/public/publishers/atlas",
+                "/api/public/instructors/1",
+                "/api/public/images/11111111-1111-1111-1111-111111111111")) {
+            get(path, null).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"auth\""));
+        }
+        get("/api/public/courses", null).expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"course\""));
+    }
+
+    @Test
     void doesNotRouteNotificationsOrActuator() {
-        get("/api/notifications/emails", TOKENS.validToken(TestTokens.TENANT_SLUG, "user-404"))
+        get("/api/notifications/emails", TOKENS.learnerToken("user-404"))
                 .expectStatus().isNotFound();
         client.get().uri("/actuator/health").exchange().expectStatus().isNotFound();
         client.get().uri("/actuator/prometheus").exchange().expectStatus().isNotFound();
@@ -231,19 +334,46 @@ class GatewayIntegrationTest {
                     .value(body -> assertThat(body).contains("\"service\":\"auth\""));
         }
 
-        get("/api/auth/tenants/atlas/branding", null).expectStatus().isOk()
+        // Publisher creation has its own stricter policy, and the slug check belongs to policy A.
+        client.post().uri("/api/auth/publishers")
+                .header(X_FORWARDED_FOR, nextIp())
+                .exchange()
+                .expectStatus().isOk()
                 .expectBody(String.class)
                 .value(body -> assertThat(body).contains("\"service\":\"auth\""));
+        get("/api/auth/publishers/slug-available?slug=atlas", null).expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"auth\""));
+
+        for (String path : List.of(
+                "/api/public/publishers/atlas",
+                "/api/public/instructors/1",
+                "/api/public/images/1")) {
+            get(path, null).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"auth\""));
+        }
+        get("/api/public/courses", null).expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"course\""));
 
         get("/api/stream/media/lesson-1/index.m3u8", null).expectStatus().isOk()
                 .expectBody(String.class)
                 .value(body -> assertThat(body).contains("\"service\":\"course\""));
+
+        // The card provider callback is public and authenticated by its signature, not a token.
+        client.post().uri("/api/payments/card/callback")
+                .header(X_FORWARDED_FOR, nextIp())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"payment\""));
     }
 
     // -------------------------------------------------------------- rate limits
 
     @Test
-    void loginBurstIsLimitedPerClientIp() {
+    void policyALimitsLoginBurstPerClientIp() {
         String burstIp = nextIp();
         List<Integer> statuses = new ArrayList<>();
         String retryAfter = null;
@@ -272,18 +402,53 @@ class GatewayIntegrationTest {
         assertThat(retryAfter).isEqualTo("1");
 
         // A different client IP has its own bucket.
-        assertThat(loginStatus(nextIp())).isEqualTo(200);
+        assertThat(postStatus("/api/auth/login", null, nextIp())).isEqualTo(200);
     }
 
     @Test
-    void policyBCountsEachUserOfATenantSeparately() {
-        String alice = TOKENS.token(claims -> claims.subject("alice"));
-        String bob = TOKENS.token(claims -> claims.subject("bob"));
+    void policyDLimitsPublisherCreationPerClientIp() {
+        String burstIp = nextIp();
+        List<Integer> statuses = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            statuses.add(postStatus("/api/auth/publishers", null, burstIp));
+        }
+
+        assertThat(statuses.getFirst()).isEqualTo(200);
+        assertThat(statuses).contains(429);
+        assertThat(statuses.stream().filter(status -> status == 200).count()).isLessThan(10);
+
+        // A different client IP can still create a publisher.
+        assertThat(postStatus("/api/auth/publishers", null, nextIp())).isEqualTo(200);
+    }
+
+    @Test
+    void policyELimitsPublicPageBurstPerClientIp() {
+        String burstIp = nextIp();
+        List<Integer> statuses = Flux.range(0, 200)
+                .flatMap(index -> Mono.fromCallable(
+                                () -> getStatus("/api/public/publishers/atlas", null, burstIp))
+                        .subscribeOn(Schedulers.boundedElastic()), 32)
+                .collectList()
+                .block(Duration.ofSeconds(60));
+
+        assertThat(statuses).isNotNull();
+        assertThat(statuses).contains(429);
+
+        // A different client IP has its own bucket.
+        assertThat(getStatus("/api/public/publishers/atlas", null, nextIp())).isEqualTo(200);
+    }
+
+    @Test
+    void policyBCountsEachSubjectSeparatelyRegardlessOfTenant() {
+        String alice = TOKENS.publisherToken("alice", "TENANT_ADMIN");
+        String bob = TOKENS.publisherToken("bob", "TENANT_ADMIN");
+        String learner = TOKENS.learnerToken("carol");
 
         // 120 concurrent requests exceed the burst of 40 by a wide margin even if the machine is
         // slow enough to refill a few tokens (20/s) while the burst is in flight.
         List<Integer> statuses = Flux.range(0, 120)
-                .flatMap(index -> Mono.fromCallable(() -> statusOf("/api/courses/1", alice))
+                .flatMap(index -> Mono.fromCallable(
+                                () -> getStatus("/api/courses/1", alice, nextIp()))
                         .subscribeOn(Schedulers.boundedElastic()), 32)
                 .collectList()
                 .block(Duration.ofSeconds(60));
@@ -291,31 +456,39 @@ class GatewayIntegrationTest {
         assertThat(statuses).isNotNull();
         assertThat(statuses).contains(200).contains(429);
 
-        // Same tenant, different subject: a fresh bucket.
+        // Same publisher, different subject: a fresh bucket.
         get("/api/courses/1", bob).expectStatus().isOk();
+        // A learner without tenant claims is keyed by sub as well.
+        get("/api/courses/1", learner).expectStatus().isOk();
     }
 
-    // ------------------------------------------------------------- host check
+    // ------------------------------------------------------- restricted session
 
     @Test
-    void rejectsHostTenantMismatch() {
-        String token = TOKENS.validToken(TestTokens.TENANT_SLUG, "user-host");
+    void aTemporaryPasswordSessionCanOnlyChangeItsPasswordOrLogOut() {
+        String restricted = TOKENS.mustChangePasswordToken("temporary-teacher");
 
-        getWithHost("/api/courses/1", token, "acme.localhost")
+        get("/api/auth/me", restricted)
                 .expectStatus().isForbidden()
                 .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .expectBody(String.class)
                 .value(body -> assertThat(body)
                         .contains("\"status\":403")
-                        .contains("The Host tenant does not match the access token.")
+                        .contains("Password change required.")
                         .doesNotContain("\"properties\":null", "\"type\":null"));
+        get("/api/auth/publishers/slug-available?slug=free", restricted)
+                .expectStatus().isForbidden();
+        post("/api/auth/publishers", restricted).expectStatus().isForbidden();
 
-        getWithHost("/api/courses/1", token, TestTokens.TENANT_SLUG + ".localhost")
-                .expectStatus().isOk();
-        getWithHost("/api/courses/1", token, "localhost")
-                .expectStatus().isOk();
-        getWithHost("/api/courses/1", token, "127.0.0.1:" + port)
-                .expectStatus().isOk();
+        // The two allowed calls reach auth-service.
+        post("/api/auth/password", restricted)
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"auth\""));
+        post("/api/auth/logout", restricted)
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"auth\""));
     }
 
     // ------------------------------------------------------- header hygiene
@@ -323,7 +496,7 @@ class GatewayIntegrationTest {
     @Test
     void stripsSpoofedTenantAndUserHeaders() {
         COURSE.clear();
-        String token = TOKENS.validToken(TestTokens.TENANT_SLUG, "user-headers");
+        String token = TOKENS.publisherToken("user-headers", "TENANT_ADMIN");
 
         client.get().uri("/api/courses/1")
                 .header(X_FORWARDED_FOR, nextIp())
@@ -348,8 +521,7 @@ class GatewayIntegrationTest {
 
     @Test
     void exposesPrometheusOnManagementPortOnly() {
-        get("/api/courses/1", TOKENS.validToken(TestTokens.TENANT_SLUG, "user-metrics"))
-                .expectStatus().isOk();
+        get("/api/courses/1", TOKENS.learnerToken("user-metrics")).expectStatus().isOk();
 
         WebTestClient managementClient = WebTestClient.bindToServer()
                 .baseUrl("http://127.0.0.1:" + managementPort)
@@ -379,11 +551,14 @@ class GatewayIntegrationTest {
                 .exchange();
     }
 
-    private WebTestClient.ResponseSpec getWithHost(String path, String token, String host) {
-        return client.get().uri(path)
+    private WebTestClient.ResponseSpec post(String path, String token) {
+        return client.post().uri(path)
                 .header(X_FORWARDED_FOR, nextIp())
-                .header(HttpHeaders.HOST, host)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .headers(headers -> {
+                    if (token != null) {
+                        headers.setBearerAuth(token);
+                    }
+                })
                 .exchange();
     }
 
@@ -394,9 +569,14 @@ class GatewayIntegrationTest {
                 .exchange();
     }
 
-    private int loginStatus(String clientIp) {
-        return client.post().uri("/api/auth/login")
+    private int getStatus(String path, String token, String clientIp) {
+        return client.get().uri(path)
                 .header(X_FORWARDED_FOR, clientIp)
+                .headers(headers -> {
+                    if (token != null) {
+                        headers.setBearerAuth(token);
+                    }
+                })
                 .exchange()
                 .expectBody(String.class)
                 .returnResult()
@@ -404,8 +584,15 @@ class GatewayIntegrationTest {
                 .value();
     }
 
-    private int statusOf(String path, String token) {
-        return get(path, token)
+    private int postStatus(String path, String token, String clientIp) {
+        return client.post().uri(path)
+                .header(X_FORWARDED_FOR, clientIp)
+                .headers(headers -> {
+                    if (token != null) {
+                        headers.setBearerAuth(token);
+                    }
+                })
+                .exchange()
                 .expectBody(String.class)
                 .returnResult()
                 .getStatus()

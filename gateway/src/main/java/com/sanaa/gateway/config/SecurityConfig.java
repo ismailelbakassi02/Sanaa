@@ -62,7 +62,11 @@ public class SecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .securityMatcher(ServerWebExchangeMatchers.pathMatchers(
                         "/api/auth/**",
-                        "/api/platform/**",
+                        "/api/public/**",
+                        "/api/learner/**",
+                        "/api/studio/**",
+                        "/api/admin/**",
+                        "/api/complaints/**",
                         "/api/courses/**",
                         "/api/modules/**",
                         "/api/lessons/**",
@@ -74,8 +78,14 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/register",
                                 "/api/auth/refresh",
-                                "/api/auth/logout").permitAll()
-                        .pathMatchers(HttpMethod.GET, "/api/auth/tenants/*/branding").permitAll()
+                                "/api/auth/logout",
+                                // Anonymous publisher creation with owner data, and the
+                                // logged-in learner path, share this endpoint.
+                                "/api/auth/publishers",
+                                "/api/payments/card/callback").permitAll()
+                        .pathMatchers(HttpMethod.GET,
+                                "/api/auth/publishers/slug-available",
+                                "/api/public/**").permitAll()
                         .pathMatchers("/api/stream/media/**").permitAll()
                         .anyExchange().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2

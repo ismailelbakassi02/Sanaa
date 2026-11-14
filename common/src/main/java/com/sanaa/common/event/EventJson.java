@@ -25,8 +25,14 @@ public final class EventJson {
         return MAPPER.writeValueAsString(value);
     }
 
-    public static <T> T fromJson(String json, Class<T> type) {
-        return MAPPER.readValue(json, type);
+    /**
+     * Reads an envelope whose payload has the given concrete type. The payload type is explicit
+     * because the generic record alone erases it to {@code Object}, which Jackson would turn into a
+     * map instead of the typed payload record.
+     */
+    public static <T> EventEnvelope<T> fromJson(String json, Class<T> payloadType) {
+        return MAPPER.readValue(json,
+                MAPPER.getTypeFactory().constructParametricType(EventEnvelope.class, payloadType));
     }
 
     public static JsonMapper mapper() {

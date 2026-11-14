@@ -24,6 +24,34 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  kafka:
+    # 29092 is the host listener of the dev Docker broker; containers use kafka:9092.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        # Bounded timeouts: the outbox poller runs on a scheduled thread, so an unreachable
+        # broker must fail the tick in a few seconds instead of blocking for minutes.
+        max.block.ms: ${KAFKA_PRODUCER_MAX_BLOCK_MS:3000}
+        request.timeout.ms: ${KAFKA_PRODUCER_REQUEST_TIMEOUT_MS:3000}
+        delivery.timeout.ms: ${KAFKA_PRODUCER_DELIVERY_TIMEOUT_MS:6000}
+    admin:
+      # A missing broker must never stop the service from starting.
+      fail-fast: false
+      properties:
+        default.api.timeout.ms: ${KAFKA_ADMIN_API_TIMEOUT_MS:5000}
+        request.timeout.ms: ${KAFKA_ADMIN_REQUEST_TIMEOUT_MS:5000}
+
+  # The service rejects anything above 1 MB itself. The container limit is slightly higher so a
+  # large file reaches the controller and gets the RFC 7807 413 instead of a container page.
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
+
 server:
   port: 8081
   error:
@@ -51,10 +79,15 @@ sanaa:
     issuer: ${JWT_ISSUER:sanaa-auth}
     audience: ${JWT_AUDIENCE:sanaa-api}
     access-token-ttl: PT15M
+  images:
+    directory: ${IMAGES_DIR:./data/images}
   bootstrap:
     enabled: ${PLATFORM_BOOTSTRAP_ENABLED:true}
-    tenant-slug: ${PLATFORM_TENANT_SLUG:platform}
-    tenant-name: ${PLATFORM_TENANT_NAME:Platform}
     admin-email: ${PLATFORM_ADMIN_EMAIL:admin@platform.local}
     admin-password: ${PLATFORM_ADMIN_PASSWORD:}
     admin-name: ${PLATFORM_ADMIN_NAME:Platform Admin}
+  outbox:
+    poller:
+      # Enabled in every real environment; tests turn it off so outbox assertions still see rows.
+      enabled: ${OUTBOX_POLLER_ENABLED:true}
+      fixed-delay-ms: 1000

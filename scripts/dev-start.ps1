@@ -305,10 +305,12 @@ if ($Client) {
 }
 Write-Host ''
 Write-Host 'Demo accounts (passwords are in .env)'
-Write-Host '  atlas    : admin@atlas.local, instructor@atlas.local, student1@atlas.local, student2@atlas.local'
-Write-Host '  acme     : admin@acme.local, instructor@acme.local, student1@acme.local, student2@acme.local'
-Write-Host '  platform : admin@platform.local (super admin)'
+Write-Host '  atlas (organization): admin@atlas.local, instructor1@atlas.local, instructor2@atlas.local'
+Write-Host '  acme (individual)   : admin@acme.local'
+Write-Host '  learners            : learner1@example.local to learner4@example.local'
+Write-Host '  platform            : PLATFORM_ADMIN_EMAIL (super admin)'
 Write-Host ''
 Write-Host 'Demo courses: run .\scripts\seed-demo.ps1, or start with -Seed.'
+Write-Host '  It still uses the v1 tenantSlug login and may fail until the course-service task updates it.'
 Write-Host ''
 Write-Host "Logs and process ids: $LogDir"

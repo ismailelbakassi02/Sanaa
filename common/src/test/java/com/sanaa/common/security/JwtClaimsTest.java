@@ -10,6 +10,8 @@ class JwtClaimsTest {
     void claimNamesAndTokenConstantsMatchTheContract() {
         assertThat(JwtClaims.TENANT_ID).isEqualTo("tenant_id");
         assertThat(JwtClaims.TENANT_SLUG).isEqualTo("tenant_slug");
+        assertThat(JwtClaims.TENANT_TYPE).isEqualTo("tenant_type");
+        assertThat(JwtClaims.MUST_CHANGE_PASSWORD).isEqualTo("must_change_password");
         assertThat(JwtClaims.ROLE).isEqualTo("role");
         assertThat(JwtClaims.EMAIL).isEqualTo("email");
         assertThat(JwtClaims.NAME).isEqualTo("name");

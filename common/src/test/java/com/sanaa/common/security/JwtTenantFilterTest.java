@@ -52,6 +52,37 @@ class JwtTenantFilterTest {
     }
 
     @Test
+    void leavesTenantUnsetForATokenWithoutTenantClaim() throws Exception {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim(JwtClaims.ROLE, "STUDENT")
+                .claim(JwtClaims.EMAIL, "learner@example.test")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+
+        FilterChain chain = (request, response) -> assertThat(TenantContext.get()).isNull();
+
+        filter.doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), chain);
+
+        assertThat(TenantContext.get()).isNull();
+    }
+
+    @Test
+    void ignoresANonStringTenantClaimAndStaysUnset() throws Exception {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim(JwtClaims.TENANT_ID, 12345)
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+
+        FilterChain chain = (request, response) -> assertThat(TenantContext.get()).isNull();
+
+        filter.doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), chain);
+
+        assertThat(TenantContext.get()).isNull();
+    }
+
+    @Test
     void clearsStaleTenantFromPooledThreadForUnauthenticatedRequest() throws Exception {
         TenantContext.set(TENANT_A);
         FilterChain chain = (request, response) -> assertThat(TenantContext.get()).isNull();

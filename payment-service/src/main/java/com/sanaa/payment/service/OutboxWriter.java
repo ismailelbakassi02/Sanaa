@@ -36,7 +36,7 @@ public class OutboxWriter {
      */
     public void append(Payment payment, EventType eventType, String reason) {
         Instant now = Instant.now();
-        EventEnvelope envelope = new EventEnvelope(
+        EventEnvelope<PaymentEventPayload> envelope = new EventEnvelope<>(
                 UUID.randomUUID().toString(),
                 eventType,
                 now,

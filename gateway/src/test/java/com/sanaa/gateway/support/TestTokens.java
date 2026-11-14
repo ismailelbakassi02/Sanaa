@@ -26,6 +26,9 @@ import com.sanaa.common.security.JwtClaims;
  * <p>WHY: the gateway tests must not depend on auth-service. The public key is served from a stub
  * JWKS endpoint, so the production decoder configuration (jwk-set-uri, issuer, audience) is
  * exercised unchanged.
+ *
+ * <p>The default token is a learner: v2 learners are global users with no publisher, so they carry
+ * no tenant claims. Publisher tokens are built explicitly with {@link #publisherToken}.
  */
 public final class TestTokens {
 
@@ -65,19 +68,18 @@ public final class TestTokens {
     }
 
     /**
-     * Builds and signs a token with the default claims, after applying the customizer.
+     * Builds and signs a token with the default learner claims, after applying the customizer.
      */
     public String token(Consumer<JWTClaimsSet.Builder> customizer) {
         Instant now = Instant.now();
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                 .issuer(JwtClaims.ISSUER)
                 .audience(JwtClaims.AUDIENCE_API)
-                .subject("user-1")
-                .claim(JwtClaims.TENANT_ID, TENANT_ID)
-                .claim(JwtClaims.TENANT_SLUG, TENANT_SLUG)
+                .subject("learner-1")
                 .claim(JwtClaims.ROLE, "STUDENT")
-                .claim(JwtClaims.EMAIL, "user@atlas.local")
-                .claim(JwtClaims.NAME, "Gateway Test User")
+                .claim(JwtClaims.EMAIL, "learner@example.local")
+                .claim(JwtClaims.NAME, "Gateway Test Learner")
+                .claim(JwtClaims.MUST_CHANGE_PASSWORD, false)
                 .jwtID(UUID.randomUUID().toString())
                 .issueTime(Date.from(now.minusSeconds(5)))
                 .expirationTime(Date.from(now.plusSeconds(300)));
@@ -96,9 +98,48 @@ public final class TestTokens {
         return jwt.serialize();
     }
 
+    /**
+     * A global learner token: no tenant claims, which is the normal v2 shape.
+     */
+    public String learnerToken(String subject) {
+        return token(claims -> claims.subject(subject));
+    }
+
+    /**
+     * A publisher member token with the claims auth-service issues for a membership.
+     */
+    public String publisherToken(String subject, String role) {
+        return token(claims -> claims
+                .subject(subject)
+                .claim(JwtClaims.ROLE, role)
+                .claim(JwtClaims.TENANT_ID, TENANT_ID)
+                .claim(JwtClaims.TENANT_SLUG, TENANT_SLUG)
+                .claim(JwtClaims.TENANT_TYPE, "ORGANIZATION"));
+    }
+
+    /**
+     * A session created with a temporary password. The gateway must only let it change the password
+     * or log out.
+     */
+    public String mustChangePasswordToken(String subject) {
+        return token(claims -> claims
+                .subject(subject)
+                .claim(JwtClaims.ROLE, "INSTRUCTOR")
+                .claim(JwtClaims.TENANT_ID, TENANT_ID)
+                .claim(JwtClaims.TENANT_SLUG, TENANT_SLUG)
+                .claim(JwtClaims.TENANT_TYPE, "ORGANIZATION")
+                .claim(JwtClaims.MUST_CHANGE_PASSWORD, true));
+    }
+
+    /**
+     * Kept for tests that only need any valid publisher token.
+     */
     public String validToken(String tenantSlug, String subject) {
         return token(claims -> claims
                 .subject(subject)
-                .claim(JwtClaims.TENANT_SLUG, tenantSlug));
+                .claim(JwtClaims.ROLE, "TENANT_ADMIN")
+                .claim(JwtClaims.TENANT_ID, TENANT_ID)
+                .claim(JwtClaims.TENANT_SLUG, tenantSlug)
+                .claim(JwtClaims.TENANT_TYPE, "ORGANIZATION"));
     }
 }

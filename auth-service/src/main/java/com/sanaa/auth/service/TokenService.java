@@ -16,6 +16,14 @@ import com.sanaa.auth.config.JwtProperties;
 import com.sanaa.auth.web.dto.LoginResponse;
 import com.sanaa.common.security.JwtClaims;
 
+/**
+ * Issues the 15-minute access token.
+ *
+ * <p>Publisher claims are conditional: a learner has no tenant, and a suspended publisher
+ * downgrades to STUDENT, so {@code tenant_id} must be absent rather than null or the nil UUID.
+ * Downstream services read it with {@code JwtTenantFilter}, which leaves the context unset when the
+ * claim is missing.
+ */
 @Service
 public class TokenService {
 
@@ -33,22 +41,27 @@ public class TokenService {
         Instant issuedAt = clock.instant();
         Instant expiresAt = issuedAt.plus(jwtProperties.accessTokenTtl());
 
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer(jwtProperties.issuer())
                 .audience(List.of(jwtProperties.audience()))
                 .subject(Long.toString(user.id()))
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
                 .id(UUID.randomUUID().toString())
-                .claim(JwtClaims.TENANT_ID, user.tenantId())
-                .claim(JwtClaims.TENANT_SLUG, user.tenantSlug())
                 .claim(JwtClaims.ROLE, user.role().name())
                 .claim(JwtClaims.EMAIL, user.email())
                 .claim(JwtClaims.NAME, user.fullName())
-                .build();
+                .claim(JwtClaims.MUST_CHANGE_PASSWORD, user.mustChangePassword());
+
+        if (user.tenantId() != null) {
+            claims.claim(JwtClaims.TENANT_ID, user.tenantId())
+                    .claim(JwtClaims.TENANT_SLUG, user.tenantSlug())
+                    .claim(JwtClaims.TENANT_TYPE, user.tenantType().name());
+        }
 
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).build();
-        String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+        String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims.build()))
+                .getTokenValue();
         return new LoginResponse(token, jwtProperties.accessTokenTtl().toSeconds());
     }
 }

@@ -292,6 +292,9 @@ One domain, one brand (SANAA). Public pages without login: home (search, categor
 - Volumes: media, receipts, images, complaint attachments, uploads (temporary), MySQL, Kafka. course-service image includes ffmpeg.
 - Prometheus on every management port, tag `application`, never a tenant tag. Add counters for events processed, outbox state, media jobs by result, complaints opened, admin audit entries.
 - CI: backend `mvn -B verify`, frontend lint, test and build, docker build.
+- Resolved versions (from `mvn dependency:tree` and `npm ls`): Hibernate ORM 7.4.13.Final,
+  kafka-clients 4.2.2, Jackson databind 3.1.7, Testcontainers 2.0.5, ArchUnit 1.5.1,
+  `@arco-design/web-react` 2.66.18 with React 19.3.1.
 
 ## 20. Invariants that tests must prove
 

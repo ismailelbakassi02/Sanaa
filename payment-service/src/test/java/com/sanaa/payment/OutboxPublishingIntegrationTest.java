@@ -67,6 +67,7 @@ import org.testcontainers.mysql.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import com.sanaa.common.event.EventEnvelope;
+import com.sanaa.common.event.PaymentEventPayload;
 import com.sanaa.common.event.EventJson;
 import com.sanaa.common.event.EventType;
 import com.sanaa.common.security.Role;
@@ -187,7 +188,8 @@ class OutboxPublishingIntegrationTest {
                 .toList();
         assertThat(approved).hasSize(1);
 
-        EventEnvelope envelope = EventJson.fromJson(approved.getFirst().value(), EventEnvelope.class);
+        EventEnvelope<PaymentEventPayload> envelope = EventJson.fromJson(
+                approved.getFirst().value(), PaymentEventPayload.class);
         assertThat(envelope.tenantId()).isEqualTo(tenantId);
         assertThat(envelope.eventType()).isEqualTo(EventType.PAYMENT_APPROVED);
         assertThat(envelope.payload().paymentId()).isEqualTo(paymentId);

@@ -20,10 +20,10 @@ public class PaymentEventValidator {
 
     private static final UUID NIL_TENANT = UUID.fromString(TenantContext.NIL_TENANT);
 
-    public EventEnvelope validate(String raw) {
-        EventEnvelope envelope;
+    public EventEnvelope<PaymentEventPayload> validate(String raw) {
+        EventEnvelope<PaymentEventPayload> envelope;
         try {
-            envelope = EventJson.fromJson(raw, EventEnvelope.class);
+            envelope = EventJson.fromJson(raw, PaymentEventPayload.class);
         } catch (RuntimeException exception) {
             // Jackson 3 throws unchecked exceptions; the original message may echo the payload,
             // so only the exception type is propagated as the cause.

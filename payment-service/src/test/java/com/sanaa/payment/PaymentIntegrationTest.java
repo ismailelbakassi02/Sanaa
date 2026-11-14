@@ -71,6 +71,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
 import com.sanaa.common.event.EventEnvelope;
+import com.sanaa.common.event.PaymentEventPayload;
 import com.sanaa.common.event.EventJson;
 import com.sanaa.common.event.EventType;
 import com.sanaa.common.security.Role;
@@ -213,8 +214,8 @@ class PaymentIntegrationTest {
         assertThat(events.getFirst().getEventType()).isEqualTo(EventType.PAYMENT_SUBMITTED);
         assertThat(events.getFirst().getTopic()).isEqualTo("sanaa.payments.v1");
         assertThat(events.getFirst().getPublishedAt()).isNull();
-        EventEnvelope envelope = EventJson.fromJson(events.getFirst().getPayload(),
-                EventEnvelope.class);
+        EventEnvelope<PaymentEventPayload> envelope = EventJson.fromJson(
+                events.getFirst().getPayload(), PaymentEventPayload.class);
         assertThat(envelope.tenantId()).isEqualTo(tenantId);
         assertThat(envelope.eventType()).isEqualTo(EventType.PAYMENT_SUBMITTED);
         assertThat(envelope.payload().paymentId()).isEqualTo(paymentId);
@@ -641,8 +642,8 @@ class PaymentIntegrationTest {
                 .filter(event -> event.getEventType() == EventType.PAYMENT_REJECTED)
                 .findFirst()
                 .orElseThrow();
-        EventEnvelope envelope = EventJson.fromJson(rejectedEvent.getPayload(),
-                EventEnvelope.class);
+        EventEnvelope<PaymentEventPayload> envelope = EventJson.fromJson(
+                rejectedEvent.getPayload(), PaymentEventPayload.class);
         assertThat(envelope.tenantId()).isEqualTo(tenantId);
         assertThat(envelope.payload().reason()).isEqualTo("Justificatif illisible");
 

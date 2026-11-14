@@ -1,7 +1,12 @@
 # ADR 004: API gateway, zero-trust JWT checks and Redis rate limiting
 
-- Status: Accepted
+- Status: Partially superseded by [ADR 010](010-publisher-model.md)
 - Date: 2026-11-08
+
+> Zero-trust JWT validation, header sanitization, error handling and Redis fail-open still apply.
+> The routes, public path list, Host-versus-tenant check and rate-limit keys below are superseded:
+> v2 splits routes by owning service (including support on 8085), removes the Host check, adds
+> policies for publisher creation and public pages, and keys policy B by `sub` only. See ADR 010.
 
 ## Context
 

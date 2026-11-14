@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import com.sanaa.common.event.EventEnvelope;
 import com.sanaa.common.event.EventType;
+import com.sanaa.common.event.PaymentEventPayload;
 import com.sanaa.common.tenant.TenantContext;
 import com.sanaa.course.config.KafkaTopicConfig;
 
@@ -38,7 +39,7 @@ public class PaymentEventConsumer {
 
     @KafkaListener(topics = KafkaTopicConfig.PAYMENTS_TOPIC, groupId = "course-service")
     public void onPaymentEvent(ConsumerRecord<String, String> record) {
-        EventEnvelope envelope = validator.validate(record.value());
+        EventEnvelope<PaymentEventPayload> envelope = validator.validate(record.value());
 
         if (envelope.eventType() != EventType.PAYMENT_APPROVED) {
             // Submitted and rejected events are valid traffic for this topic but create nothing.

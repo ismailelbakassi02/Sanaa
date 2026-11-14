@@ -22,7 +22,8 @@ spring:
             connect-timeout: 5000
             response-timeout: 30s
           routes:
-            # Public auth endpoints, policy A (2/s, burst 10, keyed by client IP).
+            # ------------------------------------------------------------ public, policy A
+            # Login, registration and refresh: 2/s, burst 10, keyed by client IP.
             - id: auth-public
               uri: ${AUTH_SERVICE_URI:http://localhost:8081}
               order: 0
@@ -36,7 +37,7 @@ spring:
                     redis-rate-limiter.replenishRate: 2
                     redis-rate-limiter.burstCapacity: 10
 
-            # Logout is public but is not part of policy A.
+            # Logout is public but must still work at the end of a restricted session.
             - id: auth-logout
               uri: ${AUTH_SERVICE_URI:http://localhost:8081}
               order: 0
@@ -44,13 +45,78 @@ spring:
                 - Path=/api/auth/logout
                 - Method=POST
 
-            # Public branding endpoint.
-            - id: auth-branding
+            # Slug availability check belongs to policy A.
+            - id: auth-slug-available
               uri: ${AUTH_SERVICE_URI:http://localhost:8081}
               order: 0
               predicates:
-                - Path=/api/auth/tenants/*/branding
+                - Path=/api/auth/publishers/slug-available
                 - Method=GET
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@clientIpKeyResolver}"
+                    redis-rate-limiter.replenishRate: 2
+                    redis-rate-limiter.burstCapacity: 10
+
+            # Publisher creation, policy D: about 5 burst then roughly 1 per minute per IP.
+            # This is deliberately stricter than the other public routes: it creates an account
+            # and a publisher in one call.
+            #
+            # WHY the scaled numbers: Spring Cloud Gateway binds replenishRate to an int, so a
+            # literal 1/60 per second cannot be expressed. One token per second with a request
+            # cost of 60 tokens is exactly one request per minute, and a capacity of 300 tokens
+            # is a burst of 5 (5 x 60). The bucket keeps fractional tokens while it refills.
+            - id: auth-publisher-create
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 0
+              predicates:
+                - Path=/api/auth/publishers
+                - Method=POST
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@clientIpKeyResolver}"
+                    redis-rate-limiter.replenishRate: 1
+                    redis-rate-limiter.burstCapacity: 300
+                    redis-rate-limiter.requestedTokens: 60
+
+            # ------------------------------------------------------- public pages, policy E
+            # Anonymous publisher, instructor and image pages: 30/s, burst 60, keyed by IP.
+            - id: auth-public-pages
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 1
+              predicates:
+                - Path=/api/public/publishers/**,/api/public/instructors/**,/api/public/images/**
+                - Method=GET
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@clientIpKeyResolver}"
+                    redis-rate-limiter.replenishRate: 30
+                    redis-rate-limiter.burstCapacity: 60
+
+            # Remaining public pages (course catalogue) are owned by course-service.
+            - id: course-public-pages
+              uri: ${COURSE_SERVICE_URI:http://localhost:8082}
+              order: 2
+              predicates:
+                - Path=/api/public/**
+                - Method=GET
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@clientIpKeyResolver}"
+                    redis-rate-limiter.replenishRate: 30
+                    redis-rate-limiter.burstCapacity: 60
+
+            # Card callback is public and signed; it is not rate limited by identity.
+            - id: payment-card-callback
+              uri: ${PAYMENT_SERVICE_URI:http://localhost:8083}
+              order: 0
+              predicates:
+                - Path=/api/payments/card/callback
+                - Method=POST
 
             # Public media delivery, policy C (50/s, burst 100, keyed by IP and lesson).
             - id: stream-media
@@ -65,16 +131,91 @@ spring:
                     redis-rate-limiter.replenishRate: 50
                     redis-rate-limiter.burstCapacity: 100
 
-            # Authenticated API groups, policy B (20/s, burst 40, keyed by tenant_id:sub).
-            - id: auth
-              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
-              order: 10
+            # ------------------------------------------------------- support (port 8085)
+            # These routes must come before the generic studio/admin rules.
+            - id: support-complaints
+              uri: ${SUPPORT_SERVICE_URI:http://localhost:8085}
+              order: 2
               predicates:
-                - Path=/api/auth/**,/api/platform/**
+                - Path=/api/complaints/**,/api/studio/complaints/**,/api/admin/complaints/**,/api/admin/audit/support
               filters:
                 - name: RequestRateLimiter
                   args:
-                    key-resolver: "#{@tenantUserKeyResolver}"
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            # ------------------------------------------------------- admin routes, policy B
+            - id: admin-auth
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 10
+              predicates:
+                - Path=/api/admin/users/**,/api/admin/publishers/**,/api/admin/audit/auth
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            - id: admin-course
+              uri: ${COURSE_SERVICE_URI:http://localhost:8082}
+              order: 10
+              predicates:
+                - Path=/api/admin/courses/**,/api/admin/reviews/**,/api/admin/stats,/api/admin/audit/course
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            - id: admin-payment
+              uri: ${PAYMENT_SERVICE_URI:http://localhost:8083}
+              order: 10
+              predicates:
+                - Path=/api/admin/payments/**,/api/admin/audit/payment
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            # ------------------------------------------------------- authenticated, policy B
+            - id: learner
+              uri: ${COURSE_SERVICE_URI:http://localhost:8082}
+              order: 10
+              predicates:
+                - Path=/api/learner/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            - id: studio-course
+              uri: ${COURSE_SERVICE_URI:http://localhost:8082}
+              order: 10
+              predicates:
+                - Path=/api/studio/courses/**,/api/studio/lessons/**,/api/studio/reviews/**,/api/studio/stats
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            - id: studio-payment
+              uri: ${PAYMENT_SERVICE_URI:http://localhost:8083}
+              order: 10
+              predicates:
+                - Path=/api/studio/payments/**,/api/studio/payment-settings/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
                     redis-rate-limiter.replenishRate: 20
                     redis-rate-limiter.burstCapacity: 40
 
@@ -86,11 +227,10 @@ spring:
               filters:
                 - name: RequestRateLimiter
                   args:
-                    key-resolver: "#{@tenantUserKeyResolver}"
+                    key-resolver: "#{@userKeyResolver}"
                     redis-rate-limiter.replenishRate: 20
                     redis-rate-limiter.burstCapacity: 40
 
-            # No route for notification-service and no route for actuator.
             - id: payment
               uri: ${PAYMENT_SERVICE_URI:http://localhost:8083}
               order: 10
@@ -99,9 +239,23 @@ spring:
               filters:
                 - name: RequestRateLimiter
                   args:
-                    key-resolver: "#{@tenantUserKeyResolver}"
+                    key-resolver: "#{@userKeyResolver}"
                     redis-rate-limiter.replenishRate: 20
                     redis-rate-limiter.burstCapacity: 40
+
+            - id: auth
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 10
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+
+            # No route for notification-service and no route for actuator.
 
 server:
   port: 8080
@@ -116,7 +270,3 @@ management:
   metrics:
     tags:
       application: gateway
-
-sanaa:
-  gateway:
-    base-domain: ${GATEWAY_BASE_DOMAIN:localhost}

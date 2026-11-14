@@ -470,7 +470,7 @@ class PaymentEventConsumptionTest {
 
     private String event(String eventId, EventType type, String tenantId, long paymentId,
                          long userId, long courseId, String reason) {
-        EventEnvelope envelope = new EventEnvelope(
+        EventEnvelope<PaymentEventPayload> envelope = new EventEnvelope<>(
                 eventId,
                 type,
                 Instant.now(),
