@@ -77,6 +77,8 @@ beforeEach(() => {
       role: 'INSTRUCTOR',
       tenantId: '11111111-1111-1111-1111-111111111111',
       tenantSlug: 'atlas',
+      tenantType: 'ORGANIZATION',
+      mustChangePassword: false,
     },
     status: 'authenticated',
     sessionStartedAt: null,

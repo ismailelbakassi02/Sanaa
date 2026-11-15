@@ -1,7 +1,8 @@
 import { Layout } from '@arco-design/web-react';
 import { Outlet } from 'react-router-dom';
 
-import { AppHeader } from '../components/AppHeader';
+import { AppFooter } from './AppFooter';
+import { AppHeader } from './AppHeader';
 
 export function AppLayout() {
   return (
@@ -10,6 +11,7 @@ export function AppLayout() {
       <Layout.Content className="sanaa-content">
         <Outlet />
       </Layout.Content>
+      <AppFooter />
     </Layout>
   );
 }

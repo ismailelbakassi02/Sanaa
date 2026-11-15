@@ -1,16 +1,14 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchMe, login } from '../api/auth';
 import { ApiError } from '../api/errors';
-import type { BrandingResponse } from '../api/types';
 import { fr } from '../i18n/fr';
-import { LoginPage } from './LoginPage';
-import { BrandingContext } from '../tenant/BrandingContext';
 import { useAuthStore } from '../store/auth';
-import { renderWithProviders, studentUser } from '../test/utils';
+import { renderWithProviders, setAuthUser, studentUser } from '../test/utils';
+import { LoginPage } from './LoginPage';
 
 vi.mock('../api/auth', () => ({
   login: vi.fn(),
@@ -18,124 +16,108 @@ vi.mock('../api/auth', () => ({
   restoreSession: vi.fn(),
   register: vi.fn(),
   logout: vi.fn(),
-  fetchBranding: vi.fn(),
 }));
 
 const loginMock = vi.mocked(login);
 const fetchMeMock = vi.mocked(fetchMe);
 
-const branding: BrandingResponse = {
-  name: 'Atlas Academy',
-  primaryColor: '#00B42A',
-  logoUrl: null,
-  registrationEnabled: true,
-};
-
-function HomeProbe() {
-  const location = useLocation();
-  return <div>{`page-accueil ${location.search}`}</div>;
-}
-
-function renderLoginPage(
-  route = '/login',
-  brandingOverrides: Partial<BrandingResponse> = {},
-) {
+function renderLogin(route = '/login') {
   return renderWithProviders(
-    <BrandingContext.Provider
-      value={{
-        slug: 'atlas',
-        branding: { ...branding, ...brandingOverrides },
-      }}
-    >
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<div>page-inscription</div>} />
-        <Route path="/" element={<HomeProbe />} />
-      </Routes>
-    </BrandingContext.Provider>,
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<div>page-inscription</div>} />
+      <Route path="/me" element={<div>page-espace</div>} />
+      <Route path="/password" element={<div>page-mot-de-passe</div>} />
+    </Routes>,
     route,
   );
 }
 
+async function submitCredentials(email = 'camille@exemple.com', password = 'motdepasse1') {
+  const user = userEvent.setup();
+  await user.type(screen.getByPlaceholderText(fr.auth.login.emailPlaceholder), email);
+  await user.type(screen.getByPlaceholderText(fr.auth.login.passwordPlaceholder), password);
+  await user.click(screen.getByRole('button', { name: fr.auth.login.submit }));
+}
+
 beforeEach(() => {
-  useAuthStore.setState({
-    accessToken: null,
-    user: null,
-    status: 'anonymous',
-    sessionStartedAt: null,
-  });
+  setAuthUser(null);
   loginMock.mockReset();
   fetchMeMock.mockReset();
 });
 
 describe('LoginPage', () => {
-  it('renders the French labels of the login form', () => {
-    renderLoginPage();
+  it('renders the French form and the single SANAA brand', () => {
+    renderLogin();
 
-    expect(screen.getByRole('heading', { name: 'Connexion', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(fr.auth.login.emailLabel)).toBeInTheDocument();
-    expect(screen.getByText(fr.auth.login.passwordLabel)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(fr.auth.login.emailPlaceholder)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Se connecter' })).toBeInTheDocument();
-    expect(screen.getByText('Atlas Academy')).toBeInTheDocument();
-  });
-
-  it('shows the French message when the login returns 401', async () => {
-    loginMock.mockRejectedValue(
-      new ApiError(401, { title: 'Unauthorized', detail: 'Invalid tenant, email or password.' }),
-    );
-    const user = userEvent.setup();
-    renderLoginPage();
-
-    await user.type(
-      screen.getByPlaceholderText(fr.auth.login.emailPlaceholder),
-      'student1@atlas.local',
-    );
-    await user.type(
-      screen.getByPlaceholderText(fr.auth.login.passwordPlaceholder),
-      'mot-de-passe',
-    );
-    await user.click(screen.getByRole('button', { name: 'Se connecter' }));
-
-    expect(await screen.findByText(fr.errors.invalidCredentials)).toBeInTheDocument();
-    expect(loginMock).toHaveBeenCalledWith({
-      tenantSlug: 'atlas',
-      email: 'student1@atlas.local',
-      password: 'mot-de-passe',
-    });
-  });
-
-  it('keeps ?tenant= when redirecting to the home page after login', async () => {
-    loginMock.mockResolvedValue({ accessToken: 'token', expiresIn: 900 });
-    fetchMeMock.mockResolvedValue(studentUser);
-    const user = userEvent.setup();
-    renderLoginPage('/login?tenant=atlas');
-
-    await user.type(
-      screen.getByPlaceholderText(fr.auth.login.emailPlaceholder),
-      'student1@atlas.local',
-    );
-    await user.type(screen.getByPlaceholderText(fr.auth.login.passwordPlaceholder), 'secret');
-    await user.click(screen.getByRole('button', { name: 'Se connecter' }));
-
-    expect(await screen.findByText('page-accueil ?tenant=atlas')).toBeInTheDocument();
-  });
-
-  it('hides account creation when registration is disabled', () => {
-    renderLoginPage('/login?tenant=platform', { registrationEnabled: false });
-
+    expect(screen.getByRole('heading', { name: fr.auth.login.title, level: 1 })).toBeVisible();
+    expect(screen.getByText(fr.auth.login.emailLabel)).toBeVisible();
+    expect(screen.getByText(fr.auth.login.passwordLabel)).toBeVisible();
     expect(
-      screen.queryByRole('link', { name: fr.auth.login.createAccount }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText(fr.auth.login.registrationDisabled)).toBeInTheDocument();
+      screen.getByRole('button', { name: fr.auth.login.submit }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('img', { name: 'SANAA' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(fr.app.tagline)).toBeVisible();
   });
 
-  it('keeps ?tenant= on the account creation link', () => {
-    renderLoginPage('/login?tenant=atlas');
+  it('links to registration and to creator onboarding without a tenant parameter', () => {
+    renderLogin('/login');
 
     expect(screen.getByRole('link', { name: fr.auth.login.createAccount })).toHaveAttribute(
       'href',
-      '/register?tenant=atlas',
+      '/register',
     );
+    expect(screen.getByRole('link', { name: fr.auth.login.becomeCreator })).toHaveAttribute(
+      'href',
+      '/become-creator',
+    );
+  });
+
+  it('shows the French credentials message on a 401 and sends only email and password', async () => {
+    loginMock.mockRejectedValue(
+      new ApiError(401, { title: 'Unauthorized', detail: 'Invalid email or password.' }),
+    );
+    renderLogin();
+
+    await submitCredentials();
+
+    expect(
+      await screen.findByText(fr.errors.invalidCredentials),
+    ).toBeInTheDocument();
+    expect(loginMock).toHaveBeenCalledWith({
+      email: 'camille@exemple.com',
+      password: 'motdepasse1',
+    });
+  });
+
+  it('opens the personal space after a successful login', async () => {
+    loginMock.mockResolvedValue({ accessToken: 'access-token', expiresIn: 900 });
+    fetchMeMock.mockResolvedValue(studentUser);
+    renderLogin();
+
+    await submitCredentials();
+
+    expect(await screen.findByText('page-espace')).toBeInTheDocument();
+    expect(useAuthStore.getState().accessToken).toBe('access-token');
+  });
+
+  it('sends a temporary-password session straight to the password page', async () => {
+    loginMock.mockResolvedValue({ accessToken: 'access-token', expiresIn: 900 });
+    fetchMeMock.mockResolvedValue({ ...studentUser, mustChangePassword: true });
+    renderLogin();
+
+    await submitCredentials();
+
+    expect(await screen.findByText('page-mot-de-passe')).toBeInTheDocument();
+  });
+
+  it('does not show the form to a session that is already signed in', () => {
+    setAuthUser(studentUser);
+    renderLogin();
+
+    expect(screen.getByText('page-espace')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: fr.auth.login.submit }),
+    ).not.toBeInTheDocument();
   });
 });

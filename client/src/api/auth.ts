@@ -2,7 +2,7 @@ import axios from 'axios';
 
 import { http } from './http';
 import type {
-  BrandingResponse,
+  ChangePasswordPayload,
   LoginPayload,
   LoginResponse,
   MeResponse,
@@ -20,25 +20,41 @@ export async function register(payload: RegisterPayload): Promise<RegisterRespon
   return response.data;
 }
 
+/**
+ * The auth service omits null fields from its JSON, so a learner arrives
+ * without tenantId/tenantSlug/tenantType. Callers rely on `null` to mean "no
+ * publisher"; `undefined` would make `tenantSlug !== null` true and show a
+ * broken studio link. Normalise once, at the API boundary.
+ */
+function normalizeMe(me: MeResponse): MeResponse {
+  return {
+    ...me,
+    tenantId: me.tenantId ?? null,
+    tenantSlug: me.tenantSlug ?? null,
+    tenantType: me.tenantType ?? null,
+    mustChangePassword: me.mustChangePassword ?? false,
+  };
+}
+
 export async function fetchMe(): Promise<MeResponse> {
   const response = await http.get<MeResponse>('/api/auth/me');
-  return response.data;
+  return normalizeMe(response.data);
 }
 
 export async function logout(): Promise<void> {
   await http.post('/api/auth/logout');
 }
 
-export async function fetchBranding(slug: string): Promise<BrandingResponse> {
-  const response = await http.get<BrandingResponse>(
-    `/api/auth/tenants/${encodeURIComponent(slug)}/branding`,
-  );
+export async function changePassword(payload: ChangePasswordPayload): Promise<LoginResponse> {
+  const response = await http.post<LoginResponse>('/api/auth/password', payload);
   return response.data;
 }
 
 /**
  * Session restore uses the raw axios call: it runs before any interceptor and
- * a 401 here simply means "no session", not "refresh the session".
+ * a 401 here simply means "no session", not "refresh the session". It is also
+ * called after opening a studio so the new publisher claims replace the
+ * learner claims on the access token.
  */
 export async function restoreSession(): Promise<string> {
   const response = await axios.post<LoginResponse>('/api/auth/refresh', null, {

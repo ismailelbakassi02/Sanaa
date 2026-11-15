@@ -19,10 +19,8 @@ import { PaymentStatusTag } from '../components/PaymentStatusTag';
 import { PAYMENTS_PAGE_SIZE, useMyPayments, usePaymentReceipt } from '../hooks/payments';
 import { formatDateTimeShort, formatPrice } from '../i18n/format';
 import { fr } from '../i18n/fr';
-import { useTenantSearch } from '../tenant/navigation';
 
 export function MyPaymentsPage() {
-  const tenantSearch = useTenantSearch();
   const [page, setPage] = useState(1);
   const query = useMyPayments(page);
   const receipt = usePaymentReceipt();
@@ -48,7 +46,7 @@ export function MyPaymentsPage() {
       width: 280,
       render: (_, payment) => (
         <Link
-          to={`/courses/${payment.courseId}${tenantSearch}`}
+          to={`/courses/${payment.courseId}`}
           className="sanaa-link"
         >
           {payment.courseTitle}
@@ -102,7 +100,7 @@ export function MyPaymentsPage() {
           </Button>
           {payment.status === 'REJECTED' ? (
             <Link
-              to={`/courses/${payment.courseId}${tenantSearch}`}
+              to={`/courses/${payment.courseId}`}
               className="sanaa-link"
             >
               {fr.payments.myPayments.retry}
@@ -146,7 +144,7 @@ export function MyPaymentsPage() {
       ) : !data || data.items.length === 0 ? (
         <div className="sanaa-empty">
           <Empty description={fr.payments.myPayments.empty} />
-          <Link to={`/courses${tenantSearch}`} className="sanaa-empty__action">
+          <Link to={`/courses`} className="sanaa-empty__action">
             <Button type="primary">{fr.payments.myPayments.browse}</Button>
           </Link>
         </div>

@@ -1,56 +1,69 @@
 import { screen } from '@testing-library/react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { RequireRole } from './RequireRole';
-import type { Role } from '../api/types';
+import type { MeResponse, Role } from '../api/types';
 import { useAuthStore } from '../store/auth';
-import { renderWithProviders, studentUser } from '../test/utils';
+import {
+  individualAdminUser,
+  instructorUser,
+  organizationAdminUser,
+  renderWithProviders,
+  setAuthUser,
+  studentUser,
+  superAdminUser,
+} from '../test/utils';
+import { ForcedPasswordGate } from './ForcedPasswordGate';
+import { RequireRole } from './RequireRole';
 
-function renderGuard(roles?: readonly Role[]) {
-  return renderWithProviders(
+const STUDIO_ROLES = ['TENANT_ADMIN', 'INSTRUCTOR'] as const satisfies readonly Role[];
+
+function GuardHarness() {
+  return (
     <Routes>
       <Route path="/login" element={<div>page-connexion</div>} />
+      <Route path="/password" element={<div>page-mot-de-passe</div>} />
+      <Route path="/me" element={<div>page-espace</div>} />
+      <Route path="/" element={<div>page-accueil</div>} />
       <Route
-        path="/"
+        path="/studio/profile"
         element={
-          <RequireRole roles={roles}>
-            <div>contenu-protege</div>
+          <RequireRole roles={STUDIO_ROLES}>
+            <div>contenu-studio</div>
           </RequireRole>
         }
       />
-    </Routes>,
+      <Route
+        path="/studio/team"
+        element={
+          <RequireRole roles={['TENANT_ADMIN']}>
+            <div>contenu-equipe</div>
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <RequireRole roles={['SUPER_ADMIN']}>
+            <div>contenu-admin</div>
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/gate/*"
+        element={
+          <ForcedPasswordGate>
+            <div>contenu-portail</div>
+          </ForcedPasswordGate>
+        }
+      />
+    </Routes>
   );
 }
 
-function HomeProbe() {
-  const location = useLocation();
-  return <div>{`accueil${location.search}`}</div>;
-}
-
-function renderPaymentGuard(route: string) {
-  return renderWithProviders(
-    <Routes>
-      <Route path="/" element={<HomeProbe />} />
-      <Route
-        path="/my-payments"
-        element={
-          <RequireRole roles={['STUDENT']} redirectOnForbidden>
-            <div>mes-paiements</div>
-          </RequireRole>
-        }
-      />
-      <Route
-        path="/payments"
-        element={
-          <RequireRole roles={['TENANT_ADMIN']} redirectOnForbidden>
-            <div>paiements-admin</div>
-          </RequireRole>
-        }
-      />
-    </Routes>,
-    route,
-  );
+function renderGuard(route: string, user: MeResponse | null) {
+  setAuthUser(user);
+  return renderWithProviders(<GuardHarness />, route);
 }
 
 beforeEach(() => {
@@ -63,84 +76,75 @@ beforeEach(() => {
 });
 
 describe('RequireRole', () => {
-  it('redirects an anonymous visitor to the login page', () => {
-    renderGuard();
+  it('sends an anonymous visitor to the login page', () => {
+    renderGuard('/studio/profile', null);
     expect(screen.getByText('page-connexion')).toBeInTheDocument();
   });
 
-  it('renders the protected content for an allowed role', () => {
-    useAuthStore.setState({
-      accessToken: 'token',
-      user: studentUser,
-      status: 'authenticated',
-    });
-    renderGuard(['STUDENT']);
-    expect(screen.getByText('contenu-protege')).toBeInTheDocument();
+  it('sends a learner away from a studio route to their space', () => {
+    renderGuard('/studio/profile', studentUser);
+    expect(screen.getByText('page-espace')).toBeInTheDocument();
+    expect(screen.queryByText('contenu-studio')).not.toBeInTheDocument();
   });
 
-  it('renders the French forbidden page for a disallowed role', () => {
-    useAuthStore.setState({
-      accessToken: 'token',
-      user: studentUser,
-      status: 'authenticated',
-    });
-    renderGuard(['TENANT_ADMIN']);
-    expect(screen.getByText('Accès refusé')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: "Retour à l'accueil" })).toBeInTheDocument();
+  it('lets an instructor open the studio profile', () => {
+    renderGuard('/studio/profile', instructorUser);
+    expect(screen.getByText('contenu-studio')).toBeInTheDocument();
   });
 
-  it('accepts any authenticated user when no role is required', () => {
-    useAuthStore.setState({
-      accessToken: 'token',
-      user: studentUser,
-      status: 'authenticated',
-    });
-    renderGuard();
-    expect(screen.getByText('contenu-protege')).toBeInTheDocument();
+  it('keeps an instructor out of the team route', () => {
+    renderGuard('/studio/team', instructorUser);
+    expect(screen.getByText('page-espace')).toBeInTheDocument();
+    expect(screen.queryByText('contenu-equipe')).not.toBeInTheDocument();
   });
 
-  it('shows the student payments route to a student', () => {
-    useAuthStore.setState({
-      accessToken: 'token',
-      user: studentUser,
-      status: 'authenticated',
-    });
-    renderPaymentGuard('/my-payments');
-    expect(screen.getByText('mes-paiements')).toBeInTheDocument();
+  it('lets an individual administrator reach the team page, which explains the restriction', () => {
+    renderGuard('/studio/team', individualAdminUser);
+    expect(screen.getByText('contenu-equipe')).toBeInTheDocument();
   });
 
-  it('shows the admin payments route to a tenant administrator', () => {
-    useAuthStore.setState({
-      accessToken: 'token',
-      user: { ...studentUser, role: 'TENANT_ADMIN' },
-      status: 'authenticated',
-    });
-    renderPaymentGuard('/payments');
-    expect(screen.getByText('paiements-admin')).toBeInTheDocument();
+  it('lets an organization administrator open the team route', () => {
+    renderGuard('/studio/team', organizationAdminUser);
+    expect(screen.getByText('contenu-equipe')).toBeInTheDocument();
   });
 
-  it.each(['STUDENT', 'INSTRUCTOR', 'SUPER_ADMIN'] as const)(
-    'redirects %s away from the admin payments route and keeps the tenant',
-    (role) => {
-      useAuthStore.setState({
-        accessToken: 'token',
-        user: { ...studentUser, role },
-        status: 'authenticated',
-      });
-      renderPaymentGuard('/payments?tenant=atlas');
-      expect(screen.getByText('accueil?tenant=atlas')).toBeInTheDocument();
-      expect(screen.queryByText('paiements-admin')).not.toBeInTheDocument();
-    },
-  );
+  it('reserves the platform administration to the super administrator', () => {
+    renderGuard('/admin', superAdminUser);
+    expect(screen.getByText('contenu-admin')).toBeInTheDocument();
+  });
 
-  it('redirects a tenant administrator away from the student payments route', () => {
-    useAuthStore.setState({
-      accessToken: 'token',
-      user: { ...studentUser, role: 'TENANT_ADMIN' },
-      status: 'authenticated',
-    });
-    renderPaymentGuard('/my-payments?tenant=atlas');
-    expect(screen.getByText('accueil?tenant=atlas')).toBeInTheDocument();
-    expect(screen.queryByText('mes-paiements')).not.toBeInTheDocument();
+  it.each([
+    ['learner', studentUser],
+    ['instructor', instructorUser],
+    ['administrator', organizationAdminUser],
+  ] as const)('redirects a %s away from /admin', (_label, user) => {
+    renderGuard('/admin', user);
+    expect(screen.getByText('page-espace')).toBeInTheDocument();
+    expect(screen.queryByText('contenu-admin')).not.toBeInTheDocument();
+  });
+
+  it('redirects a super administrator away from the studio profile', () => {
+    renderGuard('/studio/profile', superAdminUser);
+    expect(screen.getByText('page-espace')).toBeInTheDocument();
+    expect(screen.queryByText('contenu-studio')).not.toBeInTheDocument();
+  });
+
+  it('forces a temporary-password session to the password page', () => {
+    renderGuard('/studio/profile', { ...instructorUser, mustChangePassword: true });
+    expect(screen.getByText('page-mot-de-passe')).toBeInTheDocument();
+    expect(screen.queryByText('contenu-studio')).not.toBeInTheDocument();
+  });
+});
+
+describe('ForcedPasswordGate', () => {
+  it('redirects any other route to /password', () => {
+    renderGuard('/gate/anything', { ...studentUser, mustChangePassword: true });
+    expect(screen.getByText('page-mot-de-passe')).toBeInTheDocument();
+    expect(screen.queryByText('contenu-portail')).not.toBeInTheDocument();
+  });
+
+  it('lets a normal session through', () => {
+    renderGuard('/gate/anything', studentUser);
+    expect(screen.getByText('contenu-portail')).toBeInTheDocument();
   });
 });

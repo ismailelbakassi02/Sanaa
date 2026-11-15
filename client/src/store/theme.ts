@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { applyBrandTheme } from '../lib/brand';
+
 export type ThemeMode = 'light' | 'dark';
 
 const STORAGE_KEY = 'sanaa.theme';
@@ -12,12 +14,14 @@ function readStoredTheme(): ThemeMode {
   }
 }
 
+/** Sets the Arco dark attribute, then re-derives the brand scale for that mode. */
 export function applyTheme(mode: ThemeMode): void {
   if (mode === 'dark') {
     document.body.setAttribute('arco-theme', 'dark');
   } else {
     document.body.removeAttribute('arco-theme');
   }
+  applyBrandTheme(mode);
 }
 
 interface ThemeState {

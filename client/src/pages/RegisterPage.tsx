@@ -1,15 +1,15 @@
 import { Button, Divider, Form, Input, Message } from '@arco-design/web-react';
 import { IconEmail, IconLock, IconUser } from '@arco-design/web-react/icon';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 
 import { fetchMe, login, register } from '../api/auth';
 import { messageForError } from '../api/messages';
 import { AuthShell } from '../components/AuthShell';
 import { fr } from '../i18n/fr';
+import { applyServerFieldErrors } from '../lib/formErrors';
+import { passwordIssue } from '../lib/password';
 import { useAuthStore } from '../store/auth';
-import { useBranding } from '../tenant/BrandingContext';
-import { useTenantSearch } from '../tenant/navigation';
 
 interface RegisterFormValues {
   fullName: string;
@@ -18,58 +18,67 @@ interface RegisterFormValues {
   confirmPassword: string;
 }
 
+function passwordValidator(value: unknown, callback: (error?: ReactNode) => void) {
+  const text = typeof value === 'string' ? value : '';
+  if (!text) {
+    callback(fr.common.required);
+    return;
+  }
+  const issue = passwordIssue(text);
+  if (issue === 'tooShort') {
+    callback(fr.common.passwordMin);
+    return;
+  }
+  if (issue === 'tooLong') {
+    callback(fr.common.passwordMax);
+    return;
+  }
+  callback();
+}
+
 export function RegisterPage() {
-  const { slug, branding } = useBranding();
   const navigate = useNavigate();
-  const tenantSearch = useTenantSearch();
   const status = useAuthStore((state) => state.status);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<RegisterFormValues>();
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (values: RegisterFormValues) => {
     if (submitting) {
       return;
     }
-    const values = form.getFieldsValue();
-    if (!values.fullName || !values.email || !values.password || !values.confirmPassword) {
-      return;
-    }
     if (values.password !== values.confirmPassword) {
-      Message.error(fr.auth.register.passwordMismatch);
+      form.setFields({
+        confirmPassword: { error: { message: fr.auth.register.passwordMismatch } },
+      });
       return;
     }
-
     setSubmitting(true);
     try {
       await register({
-        tenantSlug: slug,
-        email: values.email,
+        email: values.email.trim(),
         password: values.password,
-        fullName: values.fullName,
+        fullName: values.fullName.trim(),
       });
       const { accessToken } = await login({
-        tenantSlug: slug,
-        email: values.email,
+        email: values.email.trim(),
         password: values.password,
       });
       useAuthStore.getState().setAccessToken(accessToken);
-      const user = await fetchMe();
-      useAuthStore.getState().setSession(accessToken, user);
+      const me = await fetchMe();
+      useAuthStore.getState().setSession(accessToken, me);
       Message.success(fr.auth.register.success);
-      navigate(`/${tenantSearch}`, { replace: true });
+      navigate('/me', { replace: true });
     } catch (error) {
-      Message.error(messageForError(error, 'register'));
+      if (!applyServerFieldErrors(form, error)) {
+        Message.error(messageForError(error, 'register'));
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!branding.registrationEnabled) {
-    return <Navigate to={`/login${tenantSearch}`} replace />;
-  }
-
   if (status === 'authenticated') {
-    return <Navigate to={`/${tenantSearch}`} replace />;
+    return <Navigate to="/me" replace />;
   }
 
   return (
@@ -113,10 +122,9 @@ export function RegisterPage() {
         <Form.Item
           label={fr.auth.register.passwordLabel}
           field="password"
-          rules={[
-            { required: true, message: fr.common.required },
-            { minLength: 10, message: fr.common.passwordMin },
-          ]}
+          // The custom validator already rejects an empty value, but only the
+          // required rule renders the asterisk and the required aria state.
+          rules={[{ required: true, message: fr.common.required }, { validator: passwordValidator }]}
         >
           <Input.Password
             placeholder={fr.auth.register.passwordPlaceholder}
@@ -145,13 +153,7 @@ export function RegisterPage() {
           />
         </Form.Item>
 
-        <Button
-          type="primary"
-          htmlType="submit"
-          long
-          loading={submitting}
-          className="sanaa-submit"
-        >
+        <Button type="primary" htmlType="submit" long loading={submitting} className="sanaa-submit">
           {submitting ? fr.auth.register.submitting : fr.auth.register.submit}
         </Button>
       </Form>
@@ -159,8 +161,14 @@ export function RegisterPage() {
       <Divider />
       <p className="sanaa-form-footer">
         <span>{fr.auth.register.haveAccount}</span>{' '}
-        <Link className="sanaa-link" to={`/login${tenantSearch}`}>
+        <Link className="sanaa-link" to="/login">
           {fr.auth.register.signIn}
+        </Link>
+      </p>
+      <p className="sanaa-form-footer">
+        <span>{fr.auth.register.creatorHint}</span>{' '}
+        <Link className="sanaa-link" to="/become-creator">
+          {fr.auth.register.becomeCreator}
         </Link>
       </p>
     </AuthShell>

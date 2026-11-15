@@ -22,12 +22,10 @@ import { useMyOpenPayment } from '../hooks/payments';
 import { formatDuration, formatPrice } from '../i18n/format';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
-import { useTenantSearch } from '../tenant/navigation';
 
 export function CourseDetailPage() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  const tenantSearch = useTenantSearch();
   const user = useAuthStore((state) => state.user);
   const parsedId = Number(courseId);
   const id = Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
@@ -38,7 +36,7 @@ export function CourseDetailPage() {
   const openPaymentQuery = useMyOpenPayment(isStudent ? id : null);
   const [buyOpen, setBuyOpen] = useState(false);
 
-  const backToCatalogue = () => navigate(`/courses${tenantSearch}`);
+  const backToCatalogue = () => navigate(`/courses`);
   const enrolled =
     isStudent && enrollments.data?.some((enrollment) => enrollment.course.id === id) === true;
   const openPayment = openPaymentQuery.data ?? null;

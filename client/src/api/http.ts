@@ -7,7 +7,6 @@ import axios, {
 import { toApiError } from './errors';
 import type { LoginResponse, ProblemDetail } from './types';
 import { useAuthStore } from '../store/auth';
-import { tenantSearch } from '../tenant/navigation';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -42,7 +41,7 @@ async function defaultRefresh(): Promise<string> {
 function defaultSessionExpired(): void {
   useAuthStore.getState().clear();
   if (window.location.pathname !== '/login') {
-    window.location.assign(`/login${tenantSearch(window.location.search)}`);
+    window.location.assign('/login');
   }
 }
 
@@ -51,7 +50,7 @@ function isAuthEndpoint(url: string | undefined): boolean {
 }
 
 /**
- * Builds the shared HTTP client.
+ * Builds the shared HTTP client for the one SANAA domain.
  *
  * WHY a single shared refresh promise: when three requests get a 401 at the
  * same time, they must rotate the refresh cookie once. Parallel refreshes

@@ -6,7 +6,6 @@ import { CourseCover } from '../components/CourseCover';
 import { useMyEnrollments } from '../hooks/enrollments';
 import { formatDate, formatPrice } from '../i18n/format';
 import { fr } from '../i18n/fr';
-import { useTenantSearch } from '../tenant/navigation';
 
 const SKELETON_COUNT = 6;
 
@@ -28,7 +27,6 @@ function MyCoursesSkeleton() {
 
 export function MyCoursesPage() {
   const query = useMyEnrollments();
-  const tenantSearch = useTenantSearch();
 
   return (
     <div className="sanaa-page">
@@ -64,7 +62,7 @@ export function MyCoursesPage() {
       ) : query.data.length === 0 ? (
         <div className="sanaa-empty">
           <Empty description={fr.myCourses.empty} />
-          <Link to={`/courses${tenantSearch}`} className="sanaa-empty__action">
+          <Link to={`/courses`} className="sanaa-empty__action">
             <Button type="primary">{fr.myCourses.browse}</Button>
           </Link>
         </div>
@@ -73,7 +71,7 @@ export function MyCoursesPage() {
           {query.data.map((enrollment) => (
             <Grid.Col key={enrollment.id} xs={24} sm={12} lg={8} xl={6}>
               <Link
-                to={`/courses/${enrollment.course.id}${tenantSearch}`}
+                to={`/courses/${enrollment.course.id}`}
                 className="sanaa-course-card-link"
               >
                 <Card hoverable bordered className="sanaa-course-card" bodyStyle={{ padding: 16 }}>

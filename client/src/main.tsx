@@ -12,7 +12,8 @@ import { Root } from './App';
 import { arcoLocale } from './i18n/arcoLocale';
 import { applyTheme, useThemeStore } from './store/theme';
 
-// Apply the stored theme before the first paint to avoid a light flash.
+// applyTheme also derives the brand scale, so both the Arco dark attribute and
+// the primary ramp are set before the first paint.
 applyTheme(useThemeStore.getState().mode);
 
 const queryClient = new QueryClient({

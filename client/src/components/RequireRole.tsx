@@ -1,54 +1,43 @@
-import { Button, Result } from '@arco-design/web-react';
 import type { ReactNode } from 'react';
-import { Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { LoadingScreen } from './LoadingScreen';
+import type { Role } from '../api/types';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
-import type { Role } from '../api/types';
-import { useTenantSearch } from '../tenant/navigation';
 
 interface RequireRoleProps {
   /** Omit to require any authenticated user. */
   roles?: readonly Role[];
-  /**
-   * Payment routes are not advertised to the other roles, so a direct URL
-   * sends the visitor home instead of showing the generic forbidden page.
-   */
-  redirectOnForbidden?: boolean;
+  /** Where a signed-in user without the role is sent. Defaults to /me. */
+  redirectTo?: string;
   children?: ReactNode;
 }
 
-export function RequireRole({ roles, redirectOnForbidden, children }: RequireRoleProps) {
+/**
+ * Route guard. Anonymous visitors go to the login page, authenticated users
+ * without the required role are redirected instead of seeing a dead end, and
+ * a forced password change keeps the session on /password.
+ */
+export function RequireRole({ roles, redirectTo = '/me', children }: RequireRoleProps) {
   const status = useAuthStore((state) => state.status);
   const user = useAuthStore((state) => state.user);
-  const navigate = useNavigate();
-  const tenantSearch = useTenantSearch();
+  const location = useLocation();
 
   if (status === 'loading') {
     return <LoadingScreen message={fr.common.loading} />;
   }
-  if (!user) {
-    return <Navigate to={`/login${tenantSearch}`} replace />;
+
+  if (status !== 'authenticated' || !user) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
+
+  if (user.mustChangePassword && location.pathname !== '/password') {
+    return <Navigate to="/password" replace />;
+  }
+
   if (roles && !roles.includes(user.role)) {
-    if (redirectOnForbidden) {
-      return <Navigate to={`/${tenantSearch}`} replace />;
-    }
-    return (
-      <div className="sanaa-center-page">
-        <Result
-          status="403"
-          title={fr.forbidden.title}
-          subTitle={fr.forbidden.body}
-          extra={
-            <Button type="primary" onClick={() => navigate(`/${tenantSearch}`)}>
-              {fr.forbidden.backHome}
-            </Button>
-          }
-        />
-      </div>
-    );
+    return <Navigate to={redirectTo} replace />;
   }
 
   return children ?? <Outlet />;

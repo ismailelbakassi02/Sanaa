@@ -1,178 +1,102 @@
-import {
-  Button,
-  Card,
-  Descriptions,
-  Grid,
-  Result,
-  Skeleton,
-  Tag,
-  Typography,
-} from '@arco-design/web-react';
-import {
-  IconApps,
-  IconBook,
-  IconEdit,
-  IconSafe,
-} from '@arco-design/web-react/icon';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, type ReactNode } from 'react';
+import { Button, Card, Grid, Tag } from '@arco-design/web-react';
+import { IconCheck, IconRight } from '@arco-design/web-react/icon';
+import { Link } from 'react-router-dom';
 
-import { fetchMe } from '../api/auth';
-import type { Role } from '../api/types';
-import { formatDate } from '../i18n/format';
+import { BrandLogo } from '../components/BrandLogo';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
-import { useBranding } from '../tenant/BrandingContext';
-
-const CARD_STYLE = { borderRadius: 8 };
-const CARD_BODY_STYLE = { padding: 24 };
-
-function roleIcon(role: Role): ReactNode {
-  switch (role) {
-    case 'STUDENT':
-      return <IconBook />;
-    case 'INSTRUCTOR':
-      return <IconEdit />;
-    case 'TENANT_ADMIN':
-      return <IconSafe />;
-    case 'SUPER_ADMIN':
-      return <IconApps />;
-  }
-}
 
 export function HomePage() {
   const user = useAuthStore((state) => state.user);
-  const setUser = useAuthStore((state) => state.setUser);
-  const sessionStartedAt = useAuthStore((state) => state.sessionStartedAt);
-  const { branding } = useBranding();
+  const primaryPath = user ? (user.mustChangePassword ? '/password' : '/me') : '/register';
+  const primaryLabel = user ? fr.home.openSpace : fr.home.startLearning;
 
-  const query = useQuery({
-    queryKey: ['me'],
-    queryFn: fetchMe,
-    placeholderData: user ?? undefined,
-    retry: 1,
-  });
-
-  useEffect(() => {
-    if (query.data) {
-      setUser(query.data);
-    }
-  }, [query.data, setUser]);
-
-  if (!user) {
-    return null;
-  }
-
-  if (query.isPending) {
-    return (
-      <div className="sanaa-page">
-        <div className="sanaa-page__head">
-          <Skeleton animation text={{ rows: 1, width: [240] }} />
+  return (
+    <main className="sanaa-home">
+      <section className="sanaa-hero">
+        <div className="sanaa-hero__content">
+          <Tag className="sanaa-hero__eyebrow">{fr.app.headerTagline}</Tag>
+          <h1 className="sanaa-display">{fr.home.heroTitle}</h1>
+          <p className="sanaa-lead">{fr.home.heroLead}</p>
+          <div className="sanaa-hero__actions">
+            <Link to={primaryPath}>
+              <Button type="primary" size="large" icon={<IconRight />}>
+                {primaryLabel}
+              </Button>
+            </Link>
+            <Link to="/become-creator">
+              <Button size="large">{fr.home.becomeCreator}</Button>
+            </Link>
+          </div>
+          <Link to="/privacy" className="sanaa-hero__privacy sanaa-link">
+            {fr.home.privacyLink}
+          </Link>
         </div>
+
+        <div className="sanaa-hero__panel">
+          <BrandLogo variant="full" height={88} />
+          <p className="sanaa-hero__panel-text">{fr.app.panelCaption}</p>
+          <ul className="sanaa-hero__points">
+            <li>
+              <IconCheck aria-hidden="true" />
+              {fr.home.learnerPoints[0]}
+            </li>
+            <li>
+              <IconCheck aria-hidden="true" />
+              {fr.home.creatorPoints[0]}
+            </li>
+            <li>
+              <IconCheck aria-hidden="true" />
+              {fr.home.creatorPoints[2]}
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section className="sanaa-audience" aria-label={fr.app.name}>
         <Grid.Row gutter={[24, 24]}>
-          <Grid.Col xs={24} lg={14}>
-            <Card bordered style={CARD_STYLE} bodyStyle={CARD_BODY_STYLE}>
-              <Skeleton animation text={{ rows: 4 }} />
+          <Grid.Col xs={24} lg={12}>
+            <Card bordered className="sanaa-card sanaa-audience__card">
+              <h2 className="sanaa-title-lg">{fr.home.learnerTitle}</h2>
+              <p className="sanaa-text sanaa-muted">{fr.home.learnerLead}</p>
+              <ul className="sanaa-points">
+                {fr.home.learnerPoints.map((point) => (
+                  <li key={point}>
+                    <IconCheck aria-hidden="true" />
+                    {point}
+                  </li>
+                ))}
+              </ul>
             </Card>
           </Grid.Col>
-          <Grid.Col xs={24} lg={10}>
-            <Card bordered style={CARD_STYLE} bodyStyle={CARD_BODY_STYLE}>
-              <Skeleton animation text={{ rows: 4 }} />
+          <Grid.Col xs={24} lg={12}>
+            <Card bordered className="sanaa-card sanaa-audience__card">
+              <h2 className="sanaa-title-lg">{fr.home.creatorTitle}</h2>
+              <p className="sanaa-text sanaa-muted">{fr.home.creatorLead}</p>
+              <ul className="sanaa-points">
+                {fr.home.creatorPoints.map((point) => (
+                  <li key={point}>
+                    <IconCheck aria-hidden="true" />
+                    {point}
+                  </li>
+                ))}
+              </ul>
             </Card>
           </Grid.Col>
         </Grid.Row>
-      </div>
-    );
-  }
+      </section>
 
-  if (query.isError) {
-    return (
-      <div className="sanaa-page">
-        <Card bordered style={CARD_STYLE} bodyStyle={CARD_BODY_STYLE}>
-          <Result
-            status="warning"
-            title={fr.home.loadErrorTitle}
-            subTitle={fr.home.loadErrorBody}
-            extra={
-              <Button type="primary" onClick={() => void query.refetch()}>
-                {fr.home.refresh}
-              </Button>
-            }
-          />
-        </Card>
-      </div>
-    );
-  }
-
-  const profile = query.data ?? user;
-  const roleCard = fr.roleCards[profile.role];
-  const details = [
-    { key: 'name', label: fr.home.nameLabel, value: profile.fullName },
-    { key: 'email', label: fr.home.emailLabel, value: profile.email },
-    {
-      key: 'role',
-      label: fr.home.roleLabel,
-      value: <Tag>{fr.roles[profile.role]}</Tag>,
-    },
-    {
-      key: 'tenant',
-      label: fr.home.tenantLabel,
-      value: (
-        <span>
-          {branding.name} <Tag>{profile.tenantSlug}</Tag>
-        </span>
-      ),
-    },
-  ];
-
-  return (
-    <div className="sanaa-page">
-      <header className="sanaa-page__head">
-        <Typography.Title heading={3} className="sanaa-title-xl">
-          {fr.home.greeting(profile.fullName)}
-        </Typography.Title>
-        {sessionStartedAt ? (
-          <p className="sanaa-text sanaa-muted">
-            {fr.home.sessionSince(formatDate(sessionStartedAt))}
-          </p>
-        ) : null}
-      </header>
-
-      <Grid.Row gutter={[24, 24]}>
-        <Grid.Col xs={24} lg={14}>
-          <Card
-            bordered
-            className="sanaa-card sanaa-card--hover"
-            style={CARD_STYLE}
-            bodyStyle={CARD_BODY_STYLE}
-          >
-            <h2 className="sanaa-title-md sanaa-card__title">{fr.home.profileTitle}</h2>
-            <Descriptions column={1} border data={details} />
-          </Card>
-        </Grid.Col>
-
-        <Grid.Col xs={24} lg={10}>
-          <Card
-            bordered
-            className="sanaa-card sanaa-card--hover"
-            style={CARD_STYLE}
-            bodyStyle={CARD_BODY_STYLE}
-          >
-            <div className="sanaa-role-card__head">
-              <span className="sanaa-role-icon" aria-hidden="true">
-                {roleIcon(profile.role)}
-              </span>
-              <div>
-                <h2 className="sanaa-title-md">{roleCard.title}</h2>
-                <p className="sanaa-caption">{fr.home.spaceTitle}</p>
-              </div>
-            </div>
-            <Tag className="sanaa-role-card__tag">{fr.common.soon}</Tag>
-            <p className="sanaa-text sanaa-text--secondary">{roleCard.description}</p>
-            <p className="sanaa-caption">{fr.home.spaceSubtitle}</p>
-          </Card>
-        </Grid.Col>
-      </Grid.Row>
-    </div>
+      <section className="sanaa-callout">
+        <div>
+          <h2 className="sanaa-title-lg">{fr.home.calloutTitle}</h2>
+          <p className="sanaa-text sanaa-muted">{fr.home.calloutBody}</p>
+        </div>
+        <Link to="/become-creator">
+          <Button type="primary" size="large">
+            {fr.home.calloutAction}
+          </Button>
+        </Link>
+      </section>
+    </main>
   );
 }

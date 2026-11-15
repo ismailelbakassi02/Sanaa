@@ -9,3 +9,6 @@ node_modules/
 *.iml
 .DS_Store
 Thumbs.db
+
+# Visual-acceptance captures are kept locally and never committed.
+docs/screenshots/

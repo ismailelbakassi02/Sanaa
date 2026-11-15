@@ -1,59 +1,64 @@
 import { Button, Divider, Form, Input, Message } from '@arco-design/web-react';
 import { IconEmail, IconLock } from '@arco-design/web-react/icon';
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { fetchMe, login } from '../api/auth';
 import { messageForError } from '../api/messages';
+import type { MeResponse } from '../api/types';
 import { AuthShell } from '../components/AuthShell';
 import { fr } from '../i18n/fr';
+import { applyServerFieldErrors } from '../lib/formErrors';
 import { useAuthStore } from '../store/auth';
-import { useBranding } from '../tenant/BrandingContext';
-import { useTenantSearch } from '../tenant/navigation';
 
 interface LoginFormValues {
   email: string;
   password: string;
 }
 
+function landingPath(user: MeResponse): string {
+  return user.mustChangePassword ? '/password' : '/me';
+}
+
 export function LoginPage() {
-  const { slug, branding } = useBranding();
   const navigate = useNavigate();
-  const tenantSearch = useTenantSearch();
+  const location = useLocation();
   const status = useAuthStore((state) => state.status);
+  const user = useAuthStore((state) => state.user);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<LoginFormValues>();
 
-  const handleSubmit = async () => {
+  const from = (location.state as { from?: string } | null)?.from;
+
+  const handleSubmit = async (values: LoginFormValues) => {
     if (submitting) {
       return;
     }
-    const values = form.getFieldsValue();
-    if (!values.email || !values.password) {
-      return;
-    }
-
     setSubmitting(true);
     try {
       const { accessToken } = await login({
-        tenantSlug: slug,
-        email: values.email,
+        email: values.email.trim(),
         password: values.password,
       });
       useAuthStore.getState().setAccessToken(accessToken);
-      const user = await fetchMe();
-      useAuthStore.getState().setSession(accessToken, user);
-      navigate(`/${tenantSearch}`, { replace: true });
+      const me = await fetchMe();
+      useAuthStore.getState().setSession(accessToken, me);
+      Message.success(fr.auth.login.success);
+      navigate(me.mustChangePassword ? '/password' : (from ?? landingPath(me)), {
+        replace: true,
+      });
     } catch (error) {
       useAuthStore.getState().clear();
-      Message.error(messageForError(error, 'login'));
+      if (!applyServerFieldErrors(form, error)) {
+        Message.error(messageForError(error, 'login'));
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (status === 'authenticated') {
-    return <Navigate to={`/${tenantSearch}`} replace />;
+  if (status === 'authenticated' && user) {
+    return <Navigate to={landingPath(user)} replace />;
   }
 
   return (
@@ -94,28 +99,24 @@ export function LoginPage() {
           />
         </Form.Item>
 
-        <Button
-          type="primary"
-          htmlType="submit"
-          long
-          loading={submitting}
-          className="sanaa-submit"
-        >
+        <Button type="primary" htmlType="submit" long loading={submitting} className="sanaa-submit">
           {submitting ? fr.auth.login.submitting : fr.auth.login.submit}
         </Button>
       </Form>
 
       <Divider />
-      {branding.registrationEnabled ? (
-        <p className="sanaa-form-footer">
-          <span>{fr.auth.login.noAccount}</span>{' '}
-          <Link className="sanaa-link" to={`/register${tenantSearch}`}>
-            {fr.auth.login.createAccount}
-          </Link>
-        </p>
-      ) : (
-        <p className="sanaa-form-footer sanaa-muted">{fr.auth.login.registrationDisabled}</p>
-      )}
+      <p className="sanaa-form-footer">
+        <span>{fr.auth.login.noAccount}</span>{' '}
+        <Link className="sanaa-link" to="/register">
+          {fr.auth.login.createAccount}
+        </Link>
+      </p>
+      <p className="sanaa-form-footer">
+        <span>{fr.auth.login.creatorQuestion}</span>{' '}
+        <Link className="sanaa-link" to="/become-creator">
+          {fr.auth.login.becomeCreator}
+        </Link>
+      </p>
     </AuthShell>
   );
 }

@@ -47,96 +47,53 @@ button:focus-visible,
   outline-offset: 2px;
 }
 
+/* The dark primary scale is ordered darkest to lightest, so step 8 is the
+   readable link and focus color against the dark surface. */
 body[arco-theme='dark'] a:focus-visible,
 body[arco-theme='dark'] button:focus-visible,
 body[arco-theme='dark'] .sanaa-link:focus-visible {
-  outline-color: rgb(var(--primary-4));
+  outline-color: rgb(var(--primary-8));
 }
 
 /* ------------------------------------------------------------------ brand */
 
-.sanaa-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.sanaa-brand--large {
-  gap: 16px;
-}
-
-.sanaa-brand--link {
-  color: inherit;
-  text-decoration: none;
-  border-radius: var(--border-radius-small);
-}
-
-.sanaa-brand__name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-1);
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sanaa-brand__name--large {
-  font-size: 20px;
-}
-
-.sanaa-brand-mark {
-  display: inline-flex;
+.sanaa-logo {
+  display: block;
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  overflow: hidden;
-  background: rgb(var(--primary-6));
-  border-radius: var(--border-radius-large);
+  width: auto;
+  color: rgb(var(--primary-6));
 }
 
-.sanaa-brand-mark--large {
-  width: 48px;
-  height: 48px;
-}
-
-.sanaa-brand-mark__initial {
-  color: var(--color-bg-white);
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.sanaa-brand-mark--large .sanaa-brand-mark__initial {
-  font-size: 24px;
-}
-
-.sanaa-brand-mark__image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+body[arco-theme='dark'] .sanaa-logo {
+  color: rgb(var(--primary-8));
 }
 
 /* -------------------------------------------------------------- typography */
 
-.sanaa-title-xl {
+.sanaa-display {
   color: var(--color-text-1);
-  font-size: 24px;
-  font-weight: 500;
-  line-height: 1.3;
+  font-size: clamp(32px, 5vw, 50px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
 }
 
-/* Arco's Typography rules are element+class specific and force 32px with
-   word-break: break-all, which breaks French titles mid-word at 390 px. Page
-   titles follow the Title 3 (24px) scale from docs/Design.md. */
-.arco-typography.sanaa-title-xl {
-  font-size: 24px;
-  word-break: normal;
-  overflow-wrap: break-word;
+.sanaa-display--compact {
+  font-size: clamp(28px, 4vw, 38px);
+}
+
+.sanaa-title-xl {
+  color: var(--color-text-1);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.sanaa-title-lg {
+  color: var(--color-text-1);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .sanaa-title-md {
@@ -146,18 +103,25 @@ body[arco-theme='dark'] .sanaa-link:focus-visible {
   line-height: 1.4;
 }
 
-.sanaa-text {
+.sanaa-lead {
+  max-width: 62ch;
   color: var(--color-text-2);
-  font-size: 14px;
-  line-height: 1.5715;
-}
-
-.sanaa-text--secondary {
-  margin-bottom: 8px;
+  font-size: 17px;
   line-height: 1.6;
 }
 
+.sanaa-text {
+  color: var(--color-text-2);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.sanaa-prose-text {
+  white-space: pre-line;
+}
+
 .sanaa-caption {
+  display: block;
   color: var(--color-text-3);
   font-size: 12px;
   line-height: 1.5;
@@ -166,6 +130,26 @@ body[arco-theme='dark'] .sanaa-link:focus-visible {
 .sanaa-muted {
   color: var(--color-text-3);
   font-size: 13px;
+}
+
+/* Keeps a dense date-time column on one line. */
+.sanaa-nowrap {
+  white-space: nowrap;
+}
+
+.sanaa-prose {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 72ch;
+}
+
+.sanaa-prose section {
+  margin-top: 12px;
+}
+
+.sanaa-prose section .sanaa-title-lg {
+  margin-bottom: 8px;
 }
 
 /* ------------------------------------------------------------------- auth */
@@ -180,63 +164,86 @@ body[arco-theme='dark'] .sanaa-link:focus-visible {
 .sanaa-auth__brand {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 48px;
-  padding: 64px 48px 40px;
-  background: rgba(var(--primary-6), 0.08);
+  justify-content: center;
+  padding: 64px 56px;
+  background: linear-gradient(
+    155deg,
+    rgba(var(--primary-6), 0.16),
+    rgba(var(--primary-6), 0.04)
+  );
   border-right: 1px solid var(--color-border-2);
 }
 
 body[arco-theme='dark'] .sanaa-auth__brand {
-  background: rgba(var(--primary-6), 0.16);
+  background: linear-gradient(
+    155deg,
+    rgba(var(--primary-6), 0.32),
+    rgba(var(--primary-6), 0.08)
+  );
 }
 
 .sanaa-auth__brand-main {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  max-width: 440px;
-  margin: auto 0;
+  max-width: 460px;
+}
+
+.sanaa-auth__logo {
+  color: rgb(var(--primary-6));
+}
+
+body[arco-theme='dark'] .sanaa-auth__logo {
+  color: rgb(var(--primary-10));
 }
 
 .sanaa-auth__tagline {
   color: var(--color-text-1);
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.45;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .sanaa-auth__caption {
   color: var(--color-text-2);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.sanaa-auth__powered {
-  color: var(--color-text-3);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 15px;
+  line-height: 1.65;
 }
 
 .sanaa-auth__form {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 48px 24px 0;
 }
 
 .sanaa-auth__card {
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
   padding: 32px;
+  margin: auto;
   background: var(--color-bg-2);
   border: 1px solid var(--color-border-2);
   border-radius: var(--border-radius-large);
 }
 
+.sanaa-auth__title {
+  color: var(--color-text-1);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
 .sanaa-auth__subtitle {
   margin: 8px 0 24px;
+}
+
+.sanaa-auth__footer {
+  margin: 32px -24px 0;
+}
+
+.sanaa-auth__footer .sanaa-footer {
+  background: transparent;
 }
 
 .sanaa-submit {
@@ -255,28 +262,12 @@ body[arco-theme='dark'] .sanaa-auth__brand {
   text-decoration: none;
 }
 
-/* Arco text buttons default to primary-6, which is too dark on the dark
-   background (about 2.8:1). The header controls use the body text color and
-   only switch to the lighter primary on hover. */
-.sanaa-header .arco-btn-text {
-  color: var(--color-text-1);
-}
-
-.sanaa-header .arco-btn-text:hover {
-  color: rgb(var(--primary-6));
-}
-
-body[arco-theme='dark'] .sanaa-link,
-body[arco-theme='dark'] .sanaa-header .arco-btn-text:hover {
-  color: rgb(var(--primary-4));
-}
-
-body[arco-theme='dark'] .sanaa-role-icon {
-  color: rgb(var(--primary-4));
-}
-
 .sanaa-link:hover {
   text-decoration: underline;
+}
+
+body[arco-theme='dark'] .sanaa-link {
+  color: rgb(var(--primary-8));
 }
 
 .sanaa-theme-toggle--floating {
@@ -295,7 +286,7 @@ body[arco-theme='dark'] .sanaa-role-icon {
 }
 
 body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
-  color: rgb(var(--primary-4));
+  color: rgb(var(--primary-8));
 }
 
 /* ------------------------------------------------------------------ shell */
@@ -306,7 +297,7 @@ body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
 }
 
 .sanaa-header {
-  height: 64px;
+  height: 68px;
   padding: 0;
   line-height: normal;
   background: var(--color-bg-2);
@@ -318,10 +309,35 @@ body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  height: 100%;
+  width: 100%;
   max-width: 1200px;
+  height: 100%;
   margin: 0 auto;
   padding: 0 24px;
+}
+
+.sanaa-header__left {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-width: 0;
+}
+
+.sanaa-header__brand {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-1);
+  text-decoration: none;
+  border-radius: var(--border-radius-small);
+}
+
+.sanaa-header__wordmark {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
 }
 
 .sanaa-header__actions {
@@ -341,43 +357,61 @@ body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
 }
 
 .sanaa-header__username {
-  max-width: 220px;
+  max-width: 200px;
   overflow: hidden;
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sanaa-header__tenant {
-  max-width: 280px;
+.sanaa-header__role {
+  margin-left: 2px;
+}
+
+.sanaa-header__public-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.sanaa-header__public-link {
+  color: var(--color-text-2);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.sanaa-header__public-link:hover {
+  color: rgb(var(--primary-6));
+}
+
+body[arco-theme='dark'] .sanaa-header__public-link:hover {
+  color: rgb(var(--primary-8));
+}
+
+.sanaa-header .arco-btn-text {
+  color: var(--color-text-1);
+}
+
+.sanaa-header .arco-btn-text:hover {
+  color: rgb(var(--primary-6));
+}
+
+body[arco-theme='dark'] .sanaa-header .arco-btn-text:hover {
+  color: rgb(var(--primary-8));
 }
 
 .sanaa-avatar {
   flex: 0 0 auto;
-  background: rgb(var(--primary-6));
   color: var(--color-bg-white);
   font-weight: 600;
+  background: rgb(var(--primary-6));
 }
 
-.sanaa-menu-account {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px 0;
-  line-height: 1.4;
-}
-
-.sanaa-menu-account__name {
-  font-weight: 500;
-}
-
-.sanaa-menu-account__meta {
-  color: var(--color-text-3);
-  font-size: 12px;
-}
-
-.sanaa-menu-account__action {
-  margin-left: 8px;
+.sanaa-user-menu__logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .sanaa-content {
@@ -388,14 +422,542 @@ body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 32px 24px 48px;
+  padding: 36px 24px 64px;
+}
+
+.sanaa-page--narrow {
+  max-width: 860px;
+}
+
+.sanaa-page--prose {
+  max-width: 960px;
 }
 
 .sanaa-page__head {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  margin-bottom: 28px;
+}
+
+.sanaa-page__head--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sanaa-page__head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ----------------------------------------------------------------- footer */
+
+.sanaa-footer {
+  background: var(--color-bg-2);
+  border-top: 1px solid var(--color-border-2);
+}
+
+.sanaa-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 24px;
+}
+
+.sanaa-footer__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-3);
+}
+
+.sanaa-footer__name {
+  color: var(--color-text-2);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.sanaa-footer__link {
+  color: var(--color-text-3);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.sanaa-footer__link:hover {
+  color: rgb(var(--primary-6));
+}
+
+body[arco-theme='dark'] .sanaa-footer__link:hover {
+  color: rgb(var(--primary-8));
+}
+
+/* ------------------------------------------------------------------- home */
+
+.sanaa-home {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 24px 72px;
+}
+
+.sanaa-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 40px;
+  align-items: center;
+}
+
+.sanaa-hero__content {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  align-items: flex-start;
+}
+
+.sanaa-hero__eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.sanaa-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sanaa-hero__privacy {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.sanaa-hero__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  justify-content: center;
+  min-height: 380px;
+  padding: 40px;
+  background: linear-gradient(
+    150deg,
+    rgba(var(--primary-6), 0.14),
+    rgba(var(--primary-6), 0.04)
+  );
+  border: 1px solid var(--color-border-2);
+  border-radius: 24px;
+}
+
+body[arco-theme='dark'] .sanaa-hero__panel {
+  background: linear-gradient(
+    150deg,
+    rgba(var(--primary-6), 0.32),
+    rgba(var(--primary-6), 0.08)
+  );
+}
+
+/* The filled panel is darker than the page, so the logo needs the lightest
+   brand step to keep the wordmark legible, as on the auth panel. */
+body[arco-theme='dark'] .sanaa-hero__panel .sanaa-logo {
+  color: rgb(var(--primary-10));
+}
+
+.sanaa-hero__panel-text {
+  color: var(--color-text-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.sanaa-hero__points,
+.sanaa-points {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: 14px;
+  line-height: 1.5;
+  list-style: none;
+}
+
+.sanaa-hero__points li,
+.sanaa-points li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sanaa-hero__points .arco-icon,
+.sanaa-points .arco-icon {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: rgb(var(--primary-6));
+}
+
+body[arco-theme='dark'] .sanaa-hero__points .arco-icon,
+body[arco-theme='dark'] .sanaa-points .arco-icon {
+  color: rgb(var(--primary-8));
+}
+
+.sanaa-audience__card {
+  padding: 32px;
+}
+
+.sanaa-audience__card .sanaa-title-lg {
+  margin-bottom: 8px;
+}
+
+.sanaa-audience__card .sanaa-text {
+  margin-bottom: 20px;
+}
+
+.sanaa-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 32px;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--border-radius-large);
+}
+
+.sanaa-callout > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 62ch;
+}
+
+/* ----------------------------------------------------------------- public */
+
+.sanaa-public {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+}
+
+.sanaa-public__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 28px;
+  margin-bottom: 32px;
+}
+
+.sanaa-public__logo {
+  flex: 0 0 auto;
+  width: 104px;
+  height: 104px;
+  padding: 10px;
+  object-fit: contain;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: 20px;
+}
+
+.sanaa-public__avatar {
+  flex: 0 0 auto;
+  font-size: 34px;
+  background: rgb(var(--primary-6));
+}
+
+.sanaa-public__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.sanaa-public__about {
+  margin-bottom: 32px;
+}
+
+.sanaa-public__links {
+  margin-bottom: 40px;
+}
+
+.sanaa-public__links .sanaa-title-md {
+  margin-bottom: 12px;
+}
+
+.sanaa-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  margin: 24px 0 0;
+  list-style: none;
+}
+
+.sanaa-link-list--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 0;
+}
+
+.sanaa-link-list--inline .arco-icon {
+  margin-right: 4px;
+}
+
+.sanaa-public__team .sanaa-title-lg {
+  margin-bottom: 6px;
+}
+
+.sanaa-public__team > .sanaa-text {
+  margin-bottom: 20px;
+}
+
+.sanaa-public__member {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+
+.sanaa-public__member .sanaa-title-md {
+  margin-bottom: 2px;
+}
+
+/* ------------------------------------------------------------ studio/forms */
+
+.sanaa-field {
+  margin-bottom: 20px;
+}
+
+.sanaa-field__label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--color-text-1);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sanaa-caption + .sanaa-caption {
+  margin-top: 4px;
+}
+
+.sanaa-image-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.sanaa-image-field__preview {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  color: var(--color-text-3);
+  font-size: 12px;
+  text-align: center;
+  background: var(--color-fill-2);
+  border: 1px dashed var(--color-border-2);
+  border-radius: var(--border-radius-medium);
+}
+
+.sanaa-image-field__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sanaa-image-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.sanaa-image-field__actions .sanaa-caption {
+  flex-basis: 100%;
+}
+
+.sanaa-color-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.sanaa-steps {
   margin-bottom: 24px;
+}
+
+.sanaa-type-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sanaa-type-choice .arco-radio {
+  flex: 1 1 240px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--border-radius-medium);
+}
+
+.sanaa-type-choice .arco-radio-checked {
+  background: rgba(var(--primary-6), 0.06);
+  border-color: rgb(var(--primary-6));
+}
+
+.sanaa-type-choice__title {
+  display: block;
+  color: var(--color-text-1);
+  font-weight: 500;
+}
+
+.sanaa-type-choice__hint {
+  display: block;
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.sanaa-field-ok {
+  color: rgb(var(--success-6));
+  font-size: 12px;
+}
+
+.sanaa-field-error {
+  color: rgb(var(--danger-6));
+  font-size: 12px;
+}
+
+.sanaa-field-ok .arco-icon {
+  margin-right: 4px;
+}
+
+.sanaa-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+}
+
+.sanaa-conflict__icon {
+  color: rgb(var(--primary-6));
+  font-size: 40px;
+}
+
+body[arco-theme='dark'] .sanaa-conflict__icon {
+  color: rgb(var(--primary-8));
+}
+
+.sanaa-inline-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  padding-top: 24px;
+  margin-top: 28px;
+  border-top: 1px solid var(--color-border-2);
+}
+
+.sanaa-form--loading {
+  opacity: 0.6;
+}
+
+/* A full-width single-line input is hard to read past ~760px. */
+.sanaa-form--narrow {
+  max-width: 760px;
+}
+
+/* ------------------------------------------------------------ tables/admin */
+
+.sanaa-table-card {
+  overflow: hidden;
+}
+
+.sanaa-table-card .sanaa-pagination {
+  padding: 16px 20px;
+  margin-top: 0;
+  border-top: 1px solid var(--color-border-2);
+}
+
+.sanaa-table-search {
+  max-width: 380px;
+  margin-bottom: 16px;
+}
+
+.sanaa-table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sanaa-table-filters .arco-input-group-wrapper,
+.sanaa-table-filters .arco-input-wrapper {
+  max-width: 280px;
+}
+
+.sanaa-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sanaa-member__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-1);
+  font-weight: 500;
+}
+
+.sanaa-member__badge {
+  margin-left: 2px;
+}
+
+.sanaa-member__status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.sanaa-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sanaa-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.sanaa-alert {
+  margin-bottom: 16px;
 }
 
 /* ------------------------------------------------------------------ cards */
@@ -410,34 +972,6 @@ body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
 
 .sanaa-card--hover:hover {
   border-color: rgb(var(--primary-6));
-}
-
-.sanaa-card__title {
-  margin-bottom: 16px;
-}
-
-.sanaa-role-card__head {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.sanaa-role-icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  color: rgb(var(--primary-6));
-  font-size: 22px;
-  background: rgba(var(--primary-6), 0.1);
-  border-radius: var(--border-radius-large);
-}
-
-.sanaa-role-card__tag {
-  margin-bottom: 12px;
 }
 
 /* --------------------------------------------------------- loading/errors */
@@ -462,7 +996,7 @@ body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: 70vh;
   padding: 24px;
   background: var(--color-bg-1);
 }
@@ -470,152 +1004,6 @@ body[arco-theme='dark'] .sanaa-theme-toggle .arco-btn-text:hover {
 .sanaa-center-page .arco-result {
   width: 100%;
   max-width: 560px;
-}
-
-/* ---------------------------------------------------------------- picker */
-
-.sanaa-picker {
-  width: 100%;
-  max-width: 440px;
-}
-
-.sanaa-picker__card {
-  width: 100%;
-}
-
-.sanaa-picker__subtitle {
-  margin: 8px 0 24px;
-}
-
-.sanaa-picker__submit {
-  margin-top: 8px;
-}
-
-.sanaa-field-error {
-  margin: -8px 0 16px;
-  color: rgb(var(--danger-6));
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-/* ---------------------------------------------------------------- mobile */
-
-@media (max-width: 991px) {
-  .sanaa-auth {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sanaa-auth__brand {
-    gap: 24px;
-    padding: 32px 24px;
-    border-right: 0;
-    border-bottom: 1px solid var(--color-border-2);
-  }
-
-  .sanaa-auth__brand-main {
-    gap: 12px;
-    max-width: none;
-    margin: 0;
-  }
-
-  .sanaa-auth__tagline {
-    font-size: 18px;
-  }
-
-  .sanaa-auth__powered {
-    display: none;
-  }
-
-  .sanaa-auth__form {
-    align-items: flex-start;
-    padding: 32px 24px 48px;
-  }
-
-  .sanaa-auth__card {
-    max-width: 520px;
-  }
-}
-
-@media (max-width: 767px) {
-  .sanaa-header__inner {
-    padding: 0 16px;
-  }
-
-  .sanaa-header__username {
-    display: none;
-  }
-
-  .sanaa-header__tenant {
-    max-width: 160px;
-  }
-
-  .sanaa-page {
-    padding: 24px 16px 40px;
-  }
-
-  .sanaa-auth__card {
-    padding: 24px;
-  }
-
-  .sanaa-theme-toggle--floating {
-    top: 12px;
-    right: 12px;
-  }
-}
-
-@media (max-width: 400px) {
-  .sanaa-auth__brand {
-    padding: 24px 16px;
-  }
-
-  .sanaa-auth__form {
-    padding: 24px 16px 40px;
-  }
-
-  .sanaa-header__tenant {
-    max-width: 110px;
-  }
-
-  .sanaa-brand__name {
-    font-size: 14px;
-  }
-}
-
-/* ------------------------------------------------------------ navigation */
-
-.sanaa-nav {
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-.sanaa-nav .arco-menu {
-  /* Arco's horizontal overflow calculation needs a real width: with an
-     intrinsic width it collapses to the overflow button. Three entries fit in
-     420 px; the mobile rules below use the full row width. */
-  width: 420px;
-  background: transparent;
-}
-
-.sanaa-nav .arco-menu-horizontal {
-  border-bottom: 0;
-}
-
-.sanaa-nav .arco-menu-item {
-  color: var(--color-text-2);
-  font-weight: 500;
-}
-
-.sanaa-nav .arco-menu-item:hover {
-  color: rgb(var(--primary-6));
-}
-
-.sanaa-nav .arco-menu-selected {
-  color: rgb(var(--primary-6));
-}
-
-body[arco-theme='dark'] .sanaa-nav .arco-menu-item:hover,
-body[arco-theme='dark'] .sanaa-nav .arco-menu-selected {
-  color: rgb(var(--primary-4));
 }
 
 /* --------------------------------------------------------------- catalogue */
@@ -672,7 +1060,7 @@ body[arco-theme='dark'] .sanaa-nav .arco-menu-selected {
 }
 
 body[arco-theme='dark'] .sanaa-course-card__price {
-  color: rgb(var(--primary-4));
+  color: rgb(var(--primary-8));
 }
 
 .sanaa-pagination {
@@ -774,7 +1162,7 @@ body[arco-theme='dark'] .sanaa-course-card__price {
 }
 
 body[arco-theme='dark'] .sanaa-price {
-  color: rgb(var(--primary-4));
+  color: rgb(var(--primary-8));
 }
 
 .sanaa-detail-aside__action {
@@ -829,26 +1217,11 @@ body[arco-theme='dark'] .sanaa-price {
 
 /* ------------------------------------------------------ management/editor */
 
-.sanaa-page--narrow {
-  max-width: 880px;
-}
-
-.sanaa-page__head--row {
-  flex-direction: row;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
 .sanaa-table-skeleton {
   padding: 24px;
   background: var(--color-bg-2);
   border: 1px solid var(--color-border-2);
   border-radius: var(--border-radius-large);
-}
-
-.sanaa-alert {
-  margin-bottom: 16px;
 }
 
 .sanaa-alert__content {
@@ -861,14 +1234,6 @@ body[arco-theme='dark'] .sanaa-price {
 
 .sanaa-alert__action {
   flex: 0 0 auto;
-}
-
-.sanaa-form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
 }
 
 .sanaa-form-actions a {
@@ -964,12 +1329,6 @@ body[arco-theme='dark'] .sanaa-price {
   margin-top: 12px;
 }
 
-/* Seven columns have to fit the 1152 px content width without hiding the
-   row actions, so payment tables use a denser cell than the authoring table.
-   Arco indents header text with an extra padding inside the th, which both
-   eats width and misaligns it with the cells once the th padding shrinks; the
-   header keeps only its vertical padding and the inner element carries the
-   same 12 px horizontal inset as the body cells. */
 .sanaa-payments-table .arco-table-th {
   padding-top: 0;
   padding-bottom: 0;
@@ -983,8 +1342,6 @@ body[arco-theme='dark'] .sanaa-price {
   padding: 12px;
 }
 
-/* The payment tables keep every value intact instead of hiding columns on a
-   phone, so touch users need to know the table scrolls sideways. */
 .sanaa-table-hint {
   display: none;
   margin-top: 8px;
@@ -1057,16 +1414,13 @@ body[arco-theme='dark'] .sanaa-price {
   font-weight: 500;
 }
 
-/* Arco keeps primary-6 as both its fill and its text token. On the dark
-   surface that text drops to about 2:1, so payment text buttons, the status
-   filter and the active page use the lighter primary, like the header. */
 body[arco-theme='dark']
   .sanaa-payment-actions
   .arco-btn-text:not(.arco-btn-status-success):not(.arco-btn-status-danger),
 body[arco-theme='dark'] .sanaa-payment-reason,
 body[arco-theme='dark'] .sanaa-payments-filter .arco-radio-button.arco-radio-checked,
 body[arco-theme='dark'] .arco-pagination-item-active {
-  color: rgb(var(--primary-4));
+  color: rgb(var(--primary-8));
 }
 
 .sanaa-receipt {
@@ -1094,12 +1448,6 @@ body[arco-theme='dark'] .arco-pagination-item-active {
   white-space: nowrap;
 }
 
-.sanaa-field-error {
-  color: rgb(var(--danger-6));
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .sanaa-field-label {
   color: var(--color-text-1);
   font-size: 14px;
@@ -1117,34 +1465,99 @@ body[arco-theme='dark'] .arco-pagination-item-active {
   justify-content: flex-end;
 }
 
+/* ------------------------------------------------------------ navigation */
+
+.sanaa-nav {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.sanaa-nav .arco-menu {
+  width: auto;
+  background: transparent;
+}
+
+.sanaa-nav .arco-menu-horizontal {
+  border-bottom: 0;
+}
+
+.sanaa-nav .arco-menu-item {
+  color: var(--color-text-2);
+  font-weight: 500;
+}
+
+.sanaa-nav .arco-menu-item:hover,
+.sanaa-nav .arco-menu-selected {
+  color: rgb(var(--primary-6));
+}
+
+body[arco-theme='dark'] .sanaa-nav .arco-menu-item:hover,
+body[arco-theme='dark'] .sanaa-nav .arco-menu-selected {
+  color: rgb(var(--primary-8));
+}
+
+/* Arco paints text buttons with step 6, which is a fill color in dark mode
+   (2.62:1 on the page). Step 8 is the readable link step (5.33:1). */
+body[arco-theme='dark']
+  .arco-btn-text:not(.arco-btn-status-success):not(.arco-btn-status-danger) {
+  color: rgb(var(--primary-8));
+}
+
+.sanaa-nav--mobile {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* ----------------------------------------------------------- responsive */
 
-@media (max-width: 1023px) {
-  /* The header needs two rows before the phone breakpoint: brand, a 320 px
-     navigation and the account controls do not fit together on a tablet. */
-  .sanaa-header {
-    height: auto;
+@media (max-width: 1080px) {
+  .sanaa-header__left {
+    gap: 18px;
   }
 
-  .sanaa-header__inner {
-    flex-wrap: wrap;
-    height: auto;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    row-gap: 4px;
-  }
-
-  .sanaa-nav {
-    flex-basis: 100%;
-    order: 3;
-  }
-
-  .sanaa-nav .arco-menu {
-    width: 100%;
+  .sanaa-header__role {
+    display: none;
   }
 }
 
 @media (max-width: 991px) {
+  .sanaa-auth {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .sanaa-auth__brand {
+    padding: 40px 24px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-2);
+  }
+
+  .sanaa-auth__brand-main {
+    gap: 16px;
+  }
+
+  .sanaa-auth__tagline {
+    font-size: 20px;
+  }
+
+  .sanaa-auth__form {
+    min-height: 0;
+    padding: 32px 24px 0;
+  }
+
+  .sanaa-auth__card {
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  .sanaa-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sanaa-hero__panel {
+    min-height: 0;
+  }
+
   .sanaa-course-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 20px;
@@ -1153,7 +1566,69 @@ body[arco-theme='dark'] .arco-pagination-item-active {
 
 @media (max-width: 767px) {
   .sanaa-header__inner {
-    padding: 8px 16px;
+    padding: 0 16px;
+  }
+
+  .sanaa-header__left {
+    gap: 12px;
+  }
+
+  .sanaa-header__public-actions {
+    gap: 10px;
+  }
+
+  /* On a phone the creator link goes first: "Se connecter" must stay reachable
+     from the header, so only the secondary link is hidden. */
+  .sanaa-header__public-link--creator {
+    display: none;
+  }
+
+  .sanaa-header__username {
+    display: none;
+  }
+
+  .sanaa-page {
+    padding: 24px 16px 48px;
+  }
+
+  .sanaa-home {
+    gap: 40px;
+    padding: 28px 16px 48px;
+  }
+
+  .sanaa-hero__panel {
+    padding: 28px;
+  }
+
+  .sanaa-audience__card,
+  .sanaa-callout {
+    padding: 24px;
+  }
+
+  .sanaa-public {
+    padding: 28px 16px 48px;
+  }
+
+  .sanaa-public__header {
+    gap: 18px;
+  }
+
+  .sanaa-public__logo {
+    width: 80px;
+    height: 80px;
+  }
+
+  .sanaa-footer__inner {
+    padding: 16px;
+  }
+
+  .sanaa-auth__footer {
+    margin: 24px -16px 0;
+  }
+
+  .sanaa-theme-toggle--floating {
+    top: 12px;
+    right: 12px;
   }
 
   .sanaa-table-hint {
@@ -1199,13 +1674,33 @@ body[arco-theme='dark'] .arco-pagination-item-active {
 
   .sanaa-page__head--row {
     flex-direction: column;
+    align-items: flex-start;
   }
 }
 
-@media (max-width: 400px) {
-  .sanaa-nav .arco-menu-item {
-    padding: 0 10px;
-    font-size: 13px;
+@media (max-width: 479px) {
+  .sanaa-header__wordmark {
+    display: none;
+  }
+
+  .sanaa-header__inner {
+    padding: 0 12px;
+  }
+
+  .sanaa-page {
+    padding: 20px 14px 40px;
+  }
+
+  .sanaa-home {
+    padding: 20px 14px 40px;
+  }
+
+  .sanaa-hero__actions .arco-btn {
+    width: 100%;
+  }
+
+  .sanaa-hero__actions a {
+    width: 100%;
   }
 
   .sanaa-course-grid {
@@ -1220,6 +1715,25 @@ body[arco-theme='dark'] .arco-pagination-item-active {
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .sanaa-member {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 400px) {
+  .sanaa-nav .arco-menu-item {
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  .sanaa-auth__brand {
+    padding: 28px 16px;
+  }
+
+  .sanaa-auth__form {
+    padding: 24px 16px 0;
   }
 }
 

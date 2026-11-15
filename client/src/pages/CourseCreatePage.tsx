@@ -6,13 +6,11 @@ import { CourseFields, type CourseFormValues } from '../components/CourseFields'
 import { useCreateCourse } from '../hooks/courses';
 import { fr } from '../i18n/fr';
 import { courseErrorMessage } from '../lib/courseErrors';
-import { useTenantSearch } from '../tenant/navigation';
 
 export function CourseCreatePage() {
   const [form] = Form.useForm<CourseFormValues>();
   const mutation = useCreateCourse();
   const navigate = useNavigate();
-  const tenantSearch = useTenantSearch();
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (values: CourseFormValues) => {
@@ -28,7 +26,7 @@ export function CourseCreatePage() {
         onSuccess: (course) => {
           Message.success(fr.editor.created);
           // The curriculum is edited on the detail editor right after creation.
-          navigate(`/manage/${course.id}/edit${tenantSearch}`);
+          navigate(`/manage/${course.id}/edit`);
         },
         onError: (mutationError) => {
           setError(courseErrorMessage(mutationError));
@@ -70,7 +68,7 @@ export function CourseCreatePage() {
             <Button type="primary" htmlType="submit" loading={mutation.isPending}>
               {mutation.isPending ? fr.editor.creating : fr.editor.create}
             </Button>
-            <Link to={`/manage${tenantSearch}`}>
+            <Link to={`/manage`}>
               <Button>{fr.editor.cancel}</Button>
             </Link>
           </div>

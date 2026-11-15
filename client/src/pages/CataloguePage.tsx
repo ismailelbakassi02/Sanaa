@@ -13,7 +13,6 @@ import { CourseCard } from '../components/CourseCard';
 import { CATALOGUE_PAGE_SIZE, useCatalogue } from '../hooks/courses';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
-import { useTenantSearch } from '../tenant/navigation';
 
 const SKELETON_COUNT = 8;
 
@@ -35,7 +34,6 @@ function CatalogueSkeleton() {
 
 export function CataloguePage() {
   const user = useAuthStore((state) => state.user);
-  const tenantSearch = useTenantSearch();
   const [page, setPage] = useState(1);
   const query = useCatalogue(page);
   // Students only see published courses, so a status tag would be noise for them.
@@ -73,7 +71,7 @@ export function CataloguePage() {
                 key={course.id}
                 course={course}
                 showStatus={showStatus}
-                to={`/courses/${course.id}${tenantSearch}`}
+                to={`/courses/${course.id}`}
               />
             ))}
           </div>

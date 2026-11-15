@@ -1,10 +1,12 @@
-import { Menu } from '@arco-design/web-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Button, Drawer, Menu, Tooltip } from '@arco-design/web-react';
+import { IconMenu } from '@arco-design/web-react/icon';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-import type { Role } from '../api/types';
+import type { MeResponse, PublisherType, Role } from '../api/types';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
-import { useTenantSearch } from '../tenant/navigation';
 
 export interface NavItem {
   key: string;
@@ -13,61 +15,129 @@ export interface NavItem {
 }
 
 /**
- * SUPER_ADMIN manages tenants, not tenant content: course-service answers 403
- * for that role, so it gets no course entry at all and keeps the home
- * placeholder.
+ * The role menu. Course, payment and catalogue routes stay out of every menu
+ * until the marketplace tasks, so a role only sees the routes it can use.
+ * The team entry exists only for an ORGANIZATION administrator.
  */
-export function navItemsForRole(role: Role): NavItem[] {
-  if (role === 'SUPER_ADMIN') {
-    return [];
+export function navItemsForRole(role: Role, tenantType?: PublisherType | null): NavItem[] {
+  switch (role) {
+    case 'STUDENT':
+      return [
+        { key: 'home', label: fr.nav.home, path: '/' },
+        { key: 'me', label: fr.nav.me, path: '/me' },
+        { key: 'become-creator', label: fr.nav.becomeCreator, path: '/become-creator' },
+      ];
+    case 'INSTRUCTOR':
+      return [
+        { key: 'home', label: fr.nav.home, path: '/' },
+        { key: 'me', label: fr.nav.me, path: '/me' },
+        { key: 'studio-profile', label: fr.nav.studioProfile, path: '/studio/profile' },
+      ];
+    case 'TENANT_ADMIN':
+      return [
+        { key: 'home', label: fr.nav.home, path: '/' },
+        { key: 'me', label: fr.nav.me, path: '/me' },
+        { key: 'studio-profile', label: fr.nav.studioProfile, path: '/studio/profile' },
+        ...(tenantType === 'ORGANIZATION'
+          ? [{ key: 'studio-team', label: fr.nav.studioTeam, path: '/studio/team' }]
+          : []),
+      ];
+    case 'SUPER_ADMIN':
+      return [
+        { key: 'home', label: fr.nav.home, path: '/' },
+        { key: 'me', label: fr.nav.me, path: '/me' },
+        { key: 'admin', label: fr.nav.admin, path: '/admin' },
+      ];
+    default:
+      return [];
   }
-  const items: NavItem[] = [
-    { key: 'courses', label: fr.menu.catalogue, path: '/courses' },
-    role === 'STUDENT'
-      ? { key: 'my-courses', label: fr.menu.myCourses, path: '/my-courses' }
-      : { key: 'manage', label: fr.menu.myFormations, path: '/manage' },
-  ];
-  if (role === 'STUDENT') {
-    items.push({ key: 'my-payments', label: fr.menu.myPayments, path: '/my-payments' });
-  }
-  if (role === 'TENANT_ADMIN') {
-    items.push({ key: 'payments', label: fr.menu.payments, path: '/payments' });
-  }
-  return items;
 }
 
-/** Header navigation. The tenant query string is preserved on every jump. */
-export function MainMenu() {
-  const user = useAuthStore((state) => state.user);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const tenantSearch = useTenantSearch();
+export function navItemsForUser(user: MeResponse | null): NavItem[] {
+  return user ? navItemsForRole(user.role, user.tenantType) : [];
+}
 
-  if (!user) {
-    return null;
-  }
-  const items = navItemsForRole(user.role);
+/**
+ * Arco matches selectedKeys against the menu item keys, and MainMenu uses the
+ * item path as the key (the click handler navigates with it). Returning the
+ * path, not the role key, is what makes the active entry highlight.
+ */
+function selectedPath(items: NavItem[], pathname: string): string | undefined {
+  const match = [...items]
+    .sort((first, second) => second.path.length - first.path.length)
+    .find((item) => pathname === item.path || pathname.startsWith(`${item.path}/`));
+  return match?.path;
+}
+
+interface MainMenuProps {
+  items?: NavItem[];
+}
+
+/** Desktop horizontal menu and phone Drawer, both driven by navItemsForRole. */
+export function MainMenu({ items: providedItems }: MainMenuProps) {
+  const user = useAuthStore((state) => state.user);
+  const items = providedItems ?? navItemsForUser(user);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const [open, setOpen] = useState(false);
+  const pathname = useLocation().pathname;
+  const navigate = useNavigate();
+
   if (items.length === 0) {
     return null;
   }
-  const selected = items.find(
-    (item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
-  );
+
+  const selected = selectedPath(items, pathname);
+  const select = (path: string) => {
+    setOpen(false);
+    navigate(path);
+  };
+
+  if (isMobile) {
+    return (
+      <div className="sanaa-nav sanaa-nav--mobile">
+        <Tooltip content={fr.nav.openMenu}>
+          <Button
+            type="text"
+            shape="circle"
+            aria-label={fr.nav.openMenu}
+            icon={<IconMenu />}
+            onClick={() => setOpen(true)}
+          />
+        </Tooltip>
+        <Drawer
+          visible={open}
+          title={fr.nav.label}
+          placement="left"
+          width={280}
+          footer={null}
+          onCancel={() => setOpen(false)}
+        >
+          <Menu mode="vertical" selectedKeys={selected ? [selected] : []} onClickMenuItem={select}>
+            {items.map((item) => (
+              <Menu.Item key={item.path}>
+                <Link to={item.path} onClick={() => setOpen(false)}>
+                  {item.label}
+                </Link>
+              </Menu.Item>
+            ))}
+          </Menu>
+        </Drawer>
+      </div>
+    );
+  }
 
   return (
-    <nav className="sanaa-nav" aria-label={fr.menu.primary}>
+    <nav className="sanaa-nav" aria-label={fr.nav.label}>
       <Menu
         mode="horizontal"
-        selectedKeys={selected ? [selected.key] : []}
-        onClickMenuItem={(key) => {
-          const item = items.find((candidate) => candidate.key === key);
-          if (item) {
-            navigate(`${item.path}${tenantSearch}`);
-          }
-        }}
+        ellipsis={false}
+        selectedKeys={selected ? [selected] : []}
+        onClickMenuItem={(key) => navigate(key)}
       >
         {items.map((item) => (
-          <Menu.Item key={item.key}>{item.label}</Menu.Item>
+          <Menu.Item key={item.path}>
+            <Link to={item.path}>{item.label}</Link>
+          </Menu.Item>
         ))}
       </Menu>
     </nav>

@@ -17,13 +17,11 @@ import { useLessonCounts, useManagedCourses } from '../hooks/courses';
 import { formatPrice } from '../i18n/format';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
-import { useTenantSearch } from '../tenant/navigation';
 
 const PAGE_SIZE = 10;
 
 export function ManageCoursesPage() {
   const user = useAuthStore((state) => state.user);
-  const tenantSearch = useTenantSearch();
   const query = useManagedCourses();
   const [page, setPage] = useState(1);
 
@@ -36,7 +34,7 @@ export function ManageCoursesPage() {
       title: fr.manageCourses.columnTitle,
       dataIndex: 'title',
       render: (_, course) => (
-        <Link to={`/manage/${course.id}/edit${tenantSearch}`} className="sanaa-link">
+        <Link to={`/manage/${course.id}/edit`} className="sanaa-link">
           {course.title}
         </Link>
       ),
@@ -65,7 +63,7 @@ export function ManageCoursesPage() {
       width: 130,
       align: 'right',
       render: (_, course) => (
-        <Link to={`/manage/${course.id}/edit${tenantSearch}`}>
+        <Link to={`/manage/${course.id}/edit`}>
           <Button type="text" size="small" icon={<IconEdit />}>
             {fr.manageCourses.edit}
           </Button>
@@ -87,7 +85,7 @@ export function ManageCoursesPage() {
               : fr.manageCourses.subtitle}
           </p>
         </div>
-        <Link to={`/manage/new${tenantSearch}`}>
+        <Link to={`/manage/new`}>
           <Button type="primary" icon={<IconPlus />}>
             {fr.manageCourses.create}
           </Button>
@@ -112,7 +110,7 @@ export function ManageCoursesPage() {
       ) : courses.length === 0 ? (
         <div className="sanaa-empty">
           <Empty description={fr.manageCourses.empty} />
-          <Link to={`/manage/new${tenantSearch}`} className="sanaa-empty__action">
+          <Link to={`/manage/new`} className="sanaa-empty__action">
             <Button type="primary">{fr.manageCourses.create}</Button>
           </Link>
         </div>

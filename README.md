@@ -17,7 +17,7 @@ actually implemented today.
 | `course-service` | In progress | Courses, modules, lessons, enrollment read model; media, playback and payment-event consumer pending |
 | `payment-service` | In progress | Submission with receipt upload, review workflow, transactional outbox; Kafka publisher and enrollment consumer pending |
 | `notification-service` | Planned | Kafka consumers and email delivery |
-| `client` | In progress | React single-page application: branding, auth, protected shell, French UI |
+| `client` | In progress | React single-page application: SANAA identity, auth, role-based shell, publisher and team pages, French UI |
 
 The implemented modules are covered by automated tests. `notification-service` currently contains a
 Spring Boot entry point and configuration only.
@@ -221,10 +221,10 @@ aussi être lancé seul, une fois la pile démarrée :
 
 ## Lancer le frontend
 
-> Le dossier `client` est encore l'application v1 : elle choisit une organisation avant la connexion
-> et envoie `tenantSlug` au gateway. Avec l'API v2 (connexion par e-mail et mot de passe, sans
-> organisation), la connexion ne fonctionnera pas tant que la tâche frontend n'aura pas réécrit ce
-> dossier. C'est attendu ; le reste du parcours se vérifie avec `curl.exe` ou un client HTTP.
+Le frontend v2 n'a qu'une marque, SANAA, et qu'un domaine. Il ne détecte plus d'organisation à
+partir du nom d'hôte ni d'un paramètre `?tenant=`, et il n'envoie plus `tenantSlug` à la connexion :
+un utilisateur se connecte avec son e-mail et son mot de passe, et un créateur se consulte par son
+slug public (`/publishers/:slug`).
 
 Prérequis : Node 20.19 ou plus récent (Node 24 est utilisé en intégration continue) et npm. Le
 gateway doit écouter sur `http://localhost:8080`.
@@ -235,30 +235,20 @@ npm ci
 npm run dev
 ```
 
-Le fichier `client/.env` est facultatif. Sans lui, `http://localhost:5173` affiche le sélecteur
-d'organisation ; `client/.env.example` documente les variables disponibles :
+Le fichier `client/.env` est facultatif. La seule variable documentée par `client/.env.example` est :
 
 - `VITE_API_TARGET` : cible du proxy `/api`, `http://localhost:8080` par défaut.
-- `VITE_BASE_DOMAIN` : domaine de base utilisé pour lire l'organisation dans le nom d'hôte,
-  `localhost` par défaut.
-- `VITE_DEFAULT_TENANT` : exemple facultatif (`atlas`) pour présélectionner une organisation quand
-  le nom d'hôte et `?tenant=` n'en fournissent aucune. Laisser la valeur vide ou commentée pour
-  obtenir le sélecteur.
 
-Ouvrir ensuite :
+Ouvrir ensuite <http://localhost:5173>. Les routes publiques sont `/`, `/login`, `/register`,
+`/become-creator`, `/publishers/:slug`, `/instructors/:id` et `/privacy`. Une fois connecté,
+`/me`, `/password`, `/studio/profile`, `/studio/team` et `/admin` s'ajoutent selon le rôle.
 
-- <http://localhost:5173> pour choisir une organisation ;
-- <http://localhost:5173/?tenant=atlas> pour ouvrir directement Atlas Academy ;
-- <http://atlas.localhost:5173> pour Atlas Academy ;
-- <http://acme.localhost:5173> pour Acme Academy.
+Le serveur de développement conserve l'en-tête `Host` (`changeOrigin: false`) et ajoute les en-têtes
+`X-Forwarded-*` (`xfwd: true`) utilisés par la limitation de débit par adresse IP. Le gateway ne
+compare plus le nom d'hôte avec une organisation, donc aucun sous-domaine n'est nécessaire.
 
-Le paramètre `?tenant=` est conservé lors des redirections internes (connexion vers l'accueil,
-déconnexion, garde d'authentification), donc un rechargement sur `/?tenant=atlas` reste valide.
-
-Le serveur de développement conserve l'en-tête `Host` (`changeOrigin: false`) : dans la version v1,
-le gateway comparait le sous-domaine avec l'organisation du jeton. Le gateway v2 ne fait plus cette
-comparaison, puisque les pages publiques utilisent un slug dans l'URL. Vite ajoute aussi les en-têtes
-`X-Forwarded-*` (`xfwd: true`) pour la limitation de débit par adresse IP.
+Les pages de cours et de paiement existent encore dans le code, mais aucun menu n'y mène : elles
+restent masquées jusqu'aux tâches de la place de marché. Voir `docs/adr/005-frontend.md`.
 
 Vérifications locales :
 
@@ -267,6 +257,7 @@ cd client
 npm run lint
 npm test
 npm run build
+npx tsc -b
 ```
 
 ## Reset the demo data

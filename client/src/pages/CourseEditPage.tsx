@@ -33,7 +33,6 @@ import {
 import { formatDuration } from '../i18n/format';
 import { fr } from '../i18n/fr';
 import { courseErrorMessage } from '../lib/courseErrors';
-import { useTenantSearch } from '../tenant/navigation';
 
 interface ModuleFormValues {
   title: string;
@@ -60,7 +59,6 @@ export function CourseEditPage() {
   const parsedId = Number(courseId);
   const id = Number.isInteger(parsedId) && parsedId > 0 ? parsedId : 0;
   const validId = id > 0;
-  const tenantSearch = useTenantSearch();
 
   const query = useCourse(validId ? id : null);
   const update = useUpdateCourse(id);
@@ -210,7 +208,7 @@ export function CourseEditPage() {
           title={fr.editor.notFoundTitle}
           subTitle={fr.editor.notFoundBody}
           extra={
-            <Link to={`/manage${tenantSearch}`}>
+            <Link to={`/manage`}>
               <Button type="primary">{fr.editor.cancel}</Button>
             </Link>
           }
@@ -308,7 +306,7 @@ export function CourseEditPage() {
             >
               {update.isPending ? fr.editor.saving : fr.editor.save}
             </Button>
-            <Link to={`/manage${tenantSearch}`}>
+            <Link to={`/manage`}>
               <Button>{fr.editor.cancel}</Button>
             </Link>
             {!archived && course.status === 'DRAFT' ? (
