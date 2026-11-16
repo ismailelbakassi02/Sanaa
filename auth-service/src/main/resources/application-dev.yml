@@ -3,3 +3,9 @@
 sanaa:
   auth:
     refresh-cookie-secure: ${COOKIE_SECURE:false}
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: ${COOKIE_SECURE:false}

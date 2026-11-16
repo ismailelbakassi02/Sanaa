@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchMe, login, register } from '../api/auth';
+import { fetchGoogleOAuthStatus, fetchMe, login, register } from '../api/auth';
 import { ApiError } from '../api/errors';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
@@ -16,11 +16,13 @@ vi.mock('../api/auth', () => ({
   restoreSession: vi.fn(),
   register: vi.fn(),
   logout: vi.fn(),
+  fetchGoogleOAuthStatus: vi.fn(),
 }));
 
 const registerMock = vi.mocked(register);
 const loginMock = vi.mocked(login);
 const fetchMeMock = vi.mocked(fetchMe);
+const googleStatusMock = vi.mocked(fetchGoogleOAuthStatus);
 
 function renderRegister() {
   return renderWithProviders(
@@ -53,6 +55,8 @@ beforeEach(() => {
   registerMock.mockReset();
   loginMock.mockReset();
   fetchMeMock.mockReset();
+  googleStatusMock.mockReset();
+  googleStatusMock.mockResolvedValue({ enabled: false });
 });
 
 describe('RegisterPage', () => {
@@ -65,6 +69,16 @@ describe('RegisterPage', () => {
       '/login',
     );
     expect(screen.getByText(fr.auth.register.subtitle)).toBeVisible();
+  });
+
+  it('keeps normal registration and offers Google when configured', async () => {
+    googleStatusMock.mockResolvedValue({ enabled: true });
+    renderRegister();
+
+    expect(screen.getByRole('button', { name: fr.auth.register.submit })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: fr.auth.google.continue }),
+    ).toBeInTheDocument();
   });
 
   it('refuses a password shorter than 10 bytes before calling the API', async () => {

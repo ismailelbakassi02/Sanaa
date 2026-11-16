@@ -24,6 +24,7 @@ import com.sanaa.auth.web.dto.LoginResponse;
 import com.sanaa.auth.web.dto.MeResponse;
 import com.sanaa.auth.web.dto.RegisterRequest;
 import com.sanaa.auth.web.dto.RegisterResponse;
+import com.sanaa.auth.web.dto.SetPasswordRequest;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -85,6 +86,17 @@ public class AuthController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ChangePasswordRequest request) {
         AuthResult result = authFacade.changePassword(AuthFacade.userId(jwt), request);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookieService.issue(result.refreshToken()))
+                .body(result.response());
+    }
+
+    /** Defines a local password for an account that was created through Google. */
+    @PostMapping("/password/set")
+    public ResponseEntity<LoginResponse> setInitialPassword(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody SetPasswordRequest request) {
+        AuthResult result = authFacade.setInitialPassword(AuthFacade.userId(jwt), request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookieService.issue(result.refreshToken()))
                 .body(result.response());

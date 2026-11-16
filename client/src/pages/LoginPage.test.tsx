@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchMe, login } from '../api/auth';
+import { fetchGoogleOAuthStatus, fetchMe, login } from '../api/auth';
 import { ApiError } from '../api/errors';
 import { fr } from '../i18n/fr';
 import { useAuthStore } from '../store/auth';
@@ -16,10 +16,12 @@ vi.mock('../api/auth', () => ({
   restoreSession: vi.fn(),
   register: vi.fn(),
   logout: vi.fn(),
+  fetchGoogleOAuthStatus: vi.fn(),
 }));
 
 const loginMock = vi.mocked(login);
 const fetchMeMock = vi.mocked(fetchMe);
+const googleStatusMock = vi.mocked(fetchGoogleOAuthStatus);
 
 function renderLogin(route = '/login') {
   return renderWithProviders(
@@ -44,6 +46,8 @@ beforeEach(() => {
   setAuthUser(null);
   loginMock.mockReset();
   fetchMeMock.mockReset();
+  googleStatusMock.mockReset();
+  googleStatusMock.mockResolvedValue({ enabled: false });
 });
 
 describe('LoginPage', () => {
@@ -71,6 +75,16 @@ describe('LoginPage', () => {
       'href',
       '/become-creator',
     );
+  });
+
+  it('keeps password login and adds Google when the backend enables it', async () => {
+    googleStatusMock.mockResolvedValue({ enabled: true });
+    renderLogin();
+
+    expect(screen.getByRole('button', { name: fr.auth.login.submit })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: fr.auth.google.continue }),
+    ).toBeInTheDocument();
   });
 
   it('shows the French credentials message on a 401 and sends only email and password', async () => {

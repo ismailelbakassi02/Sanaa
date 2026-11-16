@@ -215,6 +215,25 @@ export const fr = {
       creatorHint: 'Vous vendez déjà des formations ?',
       becomeCreator: 'Ouvrir un studio',
     },
+    google: {
+      or: 'ou',
+      continue: 'Continuer avec Google',
+      failure: "La connexion avec Google n'a pas abouti. Réessayez ou utilisez votre mot de passe.",
+      callbackTitle: 'Connexion avec Google',
+      callbackBody: 'Votre session sécurisée est en cours de préparation.',
+      callbackErrorTitle: 'Connexion Google impossible',
+      callbackErrorBody: 'Revenez à la page de connexion et réessayez.',
+      linkTitle: 'Confirmer votre compte SANAA',
+      linkSubtitle:
+        'Cette adresse Google correspond à un compte existant. Confirmez son mot de passe pour associer les deux méthodes de connexion.',
+      linkPasswordLabel: 'Mot de passe SANAA actuel',
+      linkPasswordPlaceholder: 'Votre mot de passe actuel',
+      linkSubmit: 'Associer Google à mon compte',
+      linkSubmitting: 'Association…',
+      linkSuccess: 'Google est maintenant associé à votre compte.',
+      linkExpired: 'Cette demande a expiré. Recommencez la connexion avec Google.',
+      backToLogin: 'Retour à la connexion',
+    },
   },
 
   password: {
@@ -232,6 +251,10 @@ export const fr = {
     submit: 'Enregistrer le mot de passe',
     submitting: 'Enregistrement…',
     success: 'Mot de passe mis à jour.',
+    setTitle: 'Définir un mot de passe',
+    setSubtitle:
+      'Ajoutez un mot de passe pour pouvoir vous connecter avec Google ou avec votre e-mail.',
+    setSuccess: 'Mot de passe défini. Les deux méthodes de connexion sont maintenant disponibles.',
     mismatch: 'Les mots de passe ne correspondent pas.',
     same: "Le nouveau mot de passe doit être différent de l'actuel.",
     logout: 'Se déconnecter',

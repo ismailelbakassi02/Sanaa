@@ -1,11 +1,14 @@
 package com.sanaa.auth.service;
 
+import java.time.Clock;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sanaa.auth.domain.User;
 import com.sanaa.auth.domain.UserStatus;
+import com.sanaa.auth.error.ConflictException;
 import com.sanaa.auth.error.InvalidCredentialsException;
 import com.sanaa.auth.error.UnauthenticatedException;
 import com.sanaa.auth.repository.RefreshTokenRepository;
@@ -26,17 +29,20 @@ public class PasswordChangeService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordVerifier passwordVerifier;
     private final ClaimsService claimsService;
+    private final Clock clock;
 
     public PasswordChangeService(UserRepository userRepository,
                                  RefreshTokenRepository refreshTokenRepository,
-                                 PasswordEncoder passwordEncoder,
-                                 PasswordVerifier passwordVerifier,
-                                 ClaimsService claimsService) {
+                                  PasswordEncoder passwordEncoder,
+                                  PasswordVerifier passwordVerifier,
+                                  ClaimsService claimsService,
+                                  Clock clock) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.passwordVerifier = passwordVerifier;
         this.claimsService = claimsService;
+        this.clock = clock;
     }
 
     @Transactional
@@ -52,7 +58,23 @@ public class PasswordChangeService {
 
         user.changePassword(passwordEncoder.encode(newPassword));
         userRepository.saveAndFlush(user);
-        refreshTokenRepository.revokeAllForUser(user.getId(), java.time.Instant.now());
+        refreshTokenRepository.revokeAllForUser(user.getId(), clock.instant());
+        return claimsService.resolve(user);
+    }
+
+    /** Defines the first local password of a Google-created account. */
+    @Transactional
+    public AuthenticatedUser setInitial(long userId, String newPassword) {
+        User user = userRepository.findById(userId)
+                .filter(found -> found.getStatus() == UserStatus.ACTIVE)
+                .orElseThrow(UnauthenticatedException::new);
+        if (user.hasPassword()) {
+            throw new ConflictException("This account already has a password.");
+        }
+        PasswordPolicy.validate(newPassword);
+        user.changePassword(passwordEncoder.encode(newPassword));
+        userRepository.saveAndFlush(user);
+        refreshTokenRepository.revokeAllForUser(user.getId(), clock.instant());
         return claimsService.resolve(user);
     }
 }

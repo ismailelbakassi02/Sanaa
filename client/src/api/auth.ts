@@ -3,11 +3,14 @@ import axios from 'axios';
 import { http } from './http';
 import type {
   ChangePasswordPayload,
+  GoogleLinkPayload,
+  GoogleOAuthStatusResponse,
   LoginPayload,
   LoginResponse,
   MeResponse,
   RegisterPayload,
   RegisterResponse,
+  SetPasswordPayload,
 } from './types';
 
 export async function login(payload: LoginPayload): Promise<LoginResponse> {
@@ -33,6 +36,7 @@ function normalizeMe(me: MeResponse): MeResponse {
     tenantSlug: me.tenantSlug ?? null,
     tenantType: me.tenantType ?? null,
     mustChangePassword: me.mustChangePassword ?? false,
+    hasPassword: me.hasPassword ?? true,
   };
 }
 
@@ -47,6 +51,21 @@ export async function logout(): Promise<void> {
 
 export async function changePassword(payload: ChangePasswordPayload): Promise<LoginResponse> {
   const response = await http.post<LoginResponse>('/api/auth/password', payload);
+  return response.data;
+}
+
+export async function setInitialPassword(payload: SetPasswordPayload): Promise<LoginResponse> {
+  const response = await http.post<LoginResponse>('/api/auth/password/set', payload);
+  return response.data;
+}
+
+export async function fetchGoogleOAuthStatus(): Promise<GoogleOAuthStatusResponse> {
+  const response = await http.get<GoogleOAuthStatusResponse>('/api/auth/oauth2/google/status');
+  return response.data;
+}
+
+export async function confirmGoogleLink(payload: GoogleLinkPayload): Promise<LoginResponse> {
+  const response = await http.post<LoginResponse>('/api/auth/oauth2/google/link', payload);
   return response.data;
 }
 

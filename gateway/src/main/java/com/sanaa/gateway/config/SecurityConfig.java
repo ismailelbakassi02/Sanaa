@@ -71,6 +71,7 @@ public class SecurityConfig {
                         "/api/stream/**",
                         "/api/payments/**"))
                 .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers("/api/auth/oauth2/**").permitAll()
                         .pathMatchers(HttpMethod.POST,
                                 "/api/auth/login",
                                 "/api/auth/register",

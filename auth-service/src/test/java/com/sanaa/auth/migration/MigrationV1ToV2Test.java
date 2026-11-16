@@ -20,12 +20,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Proves that V2 transforms a populated V1 database, not just an empty one.
+ * Proves that the identity migrations transform populated older schemas, not just an empty one.
  *
  * <p>The test migrates to V1, inserts the shapes that existed before the publisher model (a platform
  * tenant with its SUPER_ADMIN, an organization, an individual publisher, duplicate emails across
  * tenants and a tenant refresh token), then migrates to V2 and checks the resulting rows. This is the
- * only test that guards the data migration; the integration tests always start from the final schema.
+ * class also verifies the V3 Google identity tables and nullable password transition; integration
+ * tests otherwise always start from the final schema.
  */
 @Testcontainers
 class MigrationV1ToV2Test {
@@ -137,8 +138,40 @@ class MigrationV1ToV2Test {
         }
     }
 
+    @Test
+    void addsGoogleIdentitiesWithoutRemovingExistingPasswords() throws Exception {
+        resetDatabase();
+        migrateTo(MigrationVersion.fromVersion("1"));
+        seedV1();
+        migrateTo(MigrationVersion.fromVersion("3"));
+
+        try (Connection connection = connection();
+             Statement statement = connection.createStatement()) {
+            assertThat(columnIsNullable(connection, "users", "password_hash")).isTrue();
+            assertThat(tableExists(connection, "external_identities")).isTrue();
+            assertThat(tableExists(connection, "oauth_link_attempts")).isTrue();
+            assertThat(queryLong(connection,
+                    "select count(*) from users where password_hash is not null")).isGreaterThan(0);
+
+            statement.executeUpdate("insert into users "
+                    + "(email, password_hash, full_name, platform_role, status, "
+                    + "must_change_password, created_at, updated_at) values "
+                    + "('google@example.com', null, 'Google User', 'USER', 'ACTIVE', 0, "
+                    + "UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))");
+            long userId = queryLong(connection,
+                    "select id from users where email = 'google@example.com'");
+            statement.executeUpdate("insert into external_identities "
+                    + "(user_id, provider, provider_subject, provider_email, created_at, updated_at) "
+                    + "values (" + userId + ", 'GOOGLE', 'google-subject', "
+                    + "'google@example.com', UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))");
+            assertThat(queryLong(connection, "select count(*) from external_identities "
+                    + "where provider = 'GOOGLE' and provider_subject = 'google-subject'"))
+                    .isEqualTo(1);
+        }
+    }
+
     /**
-     * Both tests share the class container, and one of them migrates the database to V2. Cleaning
+     * Tests share the class container and migrate to different target versions. Cleaning
      * first keeps each test independent without starting a second MySQL instance.
      */
     private static void resetDatabase() {

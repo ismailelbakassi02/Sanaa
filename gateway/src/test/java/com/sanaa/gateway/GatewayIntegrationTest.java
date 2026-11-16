@@ -351,6 +351,21 @@ class GatewayIntegrationTest {
                     .value(body -> assertThat(body).contains("\"service\":\"auth\""));
         }
 
+        for (String path : List.of(
+                "/api/auth/oauth2/google/status",
+                "/api/auth/oauth2/google",
+                "/api/auth/oauth2/callback/google?code=test&state=test")) {
+            get(path, null).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"auth\""));
+        }
+        client.post().uri("/api/auth/oauth2/google/link")
+                .header(X_FORWARDED_FOR, nextIp())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"auth\""));
+
         // Publisher creation has its own stricter policy, and the slug check belongs to policy A.
         client.post().uri("/api/auth/publishers")
                 .header(X_FORWARDED_FOR, nextIp())

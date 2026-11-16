@@ -20,6 +20,7 @@ const AUTH_ENDPOINTS = [
   '/api/auth/register',
   '/api/auth/refresh',
   '/api/auth/logout',
+  '/api/auth/oauth2/',
 ];
 
 interface HttpClientOptions {

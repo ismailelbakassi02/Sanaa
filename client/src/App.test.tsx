@@ -10,6 +10,10 @@ vi.mock('./hooks/catalogue', () => ({
   useTrending: () => ({ data: [], isPending: false, isError: false }),
 }));
 
+vi.mock('./hooks/auth', () => ({
+  useGoogleOAuthStatus: () => ({ data: { enabled: false } }),
+}));
+
 vi.mock('./hooks/learner', () => ({
   useLearnerHome: () => ({ data: undefined, isPending: false, isError: true }),
 }));

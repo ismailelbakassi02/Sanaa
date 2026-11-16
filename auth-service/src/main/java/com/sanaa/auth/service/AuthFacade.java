@@ -14,6 +14,7 @@ import com.sanaa.auth.web.dto.MeResponse;
 import com.sanaa.auth.web.dto.RegisterRequest;
 import com.sanaa.auth.web.dto.RegisterResponse;
 import com.sanaa.auth.web.dto.LoginRequest;
+import com.sanaa.auth.web.dto.SetPasswordRequest;
 
 /**
  * Entry point for the unauthenticated identity flows.
@@ -33,6 +34,7 @@ public class AuthFacade {
     private final RefreshTokenService refreshTokenService;
     private final RefreshRotationService refreshRotationService;
     private final PasswordChangeService passwordChangeService;
+    private final GoogleIdentityService googleIdentityService;
     private final RefreshTokenCodec refreshTokenCodec;
     private final Clock clock;
 
@@ -42,9 +44,10 @@ public class AuthFacade {
                       UserQueryService userQueryService,
                       RefreshTokenLookupService refreshTokenLookupService,
                       RefreshTokenService refreshTokenService,
-                      RefreshRotationService refreshRotationService,
-                      PasswordChangeService passwordChangeService,
-                      RefreshTokenCodec refreshTokenCodec,
+                       RefreshRotationService refreshRotationService,
+                       PasswordChangeService passwordChangeService,
+                       GoogleIdentityService googleIdentityService,
+                       RefreshTokenCodec refreshTokenCodec,
                       Clock clock) {
         this.registrationService = registrationService;
         this.loginService = loginService;
@@ -54,6 +57,7 @@ public class AuthFacade {
         this.refreshTokenService = refreshTokenService;
         this.refreshRotationService = refreshRotationService;
         this.passwordChangeService = passwordChangeService;
+        this.googleIdentityService = googleIdentityService;
         this.refreshTokenCodec = refreshTokenCodec;
         this.clock = clock;
     }
@@ -66,8 +70,7 @@ public class AuthFacade {
     public AuthResult login(LoginRequest request) {
         AuthenticatedUser user = loginService.login(EmailNormalizer.normalize(request.email()),
                 request.password());
-        String refreshToken = refreshTokenService.issue(user.tenantId(), user.id());
-        return new AuthResult(tokenService.issue(user), refreshToken);
+        return issueSession(user);
     }
 
     /**
@@ -127,6 +130,23 @@ public class AuthFacade {
     public AuthResult changePassword(long userId, ChangePasswordRequest request) {
         AuthenticatedUser user = passwordChangeService.change(userId, request.currentPassword(),
                 request.newPassword());
+        return issueSession(user);
+    }
+
+    public AuthResult setInitialPassword(long userId, SetPasswordRequest request) {
+        return issueSession(passwordChangeService.setInitial(userId, request.newPassword()));
+    }
+
+    public GoogleLoginOutcome beginGoogleLogin(GoogleProfile profile) {
+        return googleIdentityService.begin(profile);
+    }
+
+    public AuthResult confirmGoogleLink(String rawTicket, String password) {
+        return issueSession(googleIdentityService.confirmLink(rawTicket, password));
+    }
+
+    /** Shared session issuance after password or Google authentication. */
+    public AuthResult issueSession(AuthenticatedUser user) {
         String refreshToken = refreshTokenService.issue(user.tenantId(), user.id());
         return new AuthResult(tokenService.issue(user), refreshToken);
     }

@@ -11,5 +11,6 @@ public record MeResponse(
         String tenantId,
         String tenantSlug,
         String tenantType,
-        boolean mustChangePassword) {
+        boolean mustChangePassword,
+        boolean hasPassword) {
 }

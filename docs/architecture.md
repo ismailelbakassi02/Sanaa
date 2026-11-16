@@ -114,7 +114,13 @@ Users are global. Memberships link a user to a publisher.
 Flows:
 - **Register as learner**: `POST /api/auth/register` (email, password, fullName). Role STUDENT, no tenant.
 - **Create a publisher** (`POST /api/auth/publishers`): body has publisherType (INDIVIDUAL or ORGANIZATION), publisherName, slug, color, and either owner data (anonymous call, creates the user too) or nothing extra when called by a logged-in learner ("Devenir créateur"). The tenant and the TENANT_ADMIN membership are created in one transaction. A user who already has a membership gets 409. The caller then calls refresh to receive the publisher claims.
-- **Login**: email and password only. No tenant slug.
+- **Password login**: email and password only. No tenant slug.
+- **Google login**: optional OpenID Connect authorization-code flow through auth-service and the
+  gateway. Google must return `email_verified=true`; its stable `sub`, not the email, identifies the
+  external account. A new verified email creates a passwordless learner who may define a local
+  password later. If the email already belongs to a password account, a ten-minute opaque HttpOnly
+  link ticket and the existing password are required before linking. Both methods then issue the
+  same SANAA JWT and rotated refresh cookie; Google tokens are never exposed to the SPA or stored.
 - **Add a team member** (ORGANIZATION only, TENANT_ADMIN): creates a user with a temporary password and `must_change_password = true`, plus an INSTRUCTOR or TENANT_ADMIN membership. An existing email gets 409. `must_change_password` limits the session to change-password and logout until changed.
 - **Disable and re-enable members** (cannot disable self, cannot disable the last active TENANT_ADMIN, also under concurrency). Disabling revokes the member's refresh tokens.
 - Reserved slugs: platform, www, api, admin, app, mail, static, auth, support, help, blog, docs, status, cdn, assets, login, register, dashboard, billing, sanaa, studio, learn, courses, publishers, instructors, public.
@@ -122,14 +128,16 @@ Flows:
 - Password rule: 10 to 72 bytes in UTF-8 everywhere a password is set.
 - A suspended publisher: login and refresh issue claims without tenant data and with role STUDENT (members become plain learners). Already issued tokens stay valid up to 15 minutes (documented).
 
-Access token (RS256 + JWKS, 15 minutes): `iss=sanaa-auth`, `aud=sanaa-api`, `sub`, `email`, `name`, `role`, `jti`, `must_change_password`, and for publisher members only: `tenant_id`, `tenant_slug`, `tenant_type`. Refresh token: opaque, hashed, rotated, reuse detection revokes all tokens of the user, cookie `sanaa_refresh` (HttpOnly, SameSite=Strict, Path=/api/auth). Every service validates the JWT itself.
+Access token (RS256 + JWKS, 15 minutes): `iss=sanaa-auth`, `aud=sanaa-api`, `sub`, `email`, `name`, `role`, `jti`, `must_change_password`, and for publisher members only: `tenant_id`, `tenant_slug`, `tenant_type`. Refresh token: opaque, hashed, rotated, reuse detection revokes all tokens of the user, cookie `sanaa_refresh` (HttpOnly, SameSite=Strict, Path=/api/auth). The Google authorization request uses a five-minute transient server session for state and nonce (HttpOnly, SameSite=Lax, Path=/api/auth/oauth2), invalidated on success or failure; an account-link ticket is opaque, hashed in MySQL, one-use and ten minutes. Every service validates the SANAA JWT itself.
 
 ## 7. Data model
 
 Conventions: utf8mb4, `created_at` and `updated_at`, money `DECIMAL(10,2)`, BIGINT ids (tenants and files use UUID). Tenant-scoped tables have `tenant_id CHAR(36) NOT NULL`, the nil-UUID CHECK, and an index starting with `tenant_id`. Flyway only; V2 migrations transform the existing schema and are tested by migrating a V1 database with sample rows.
 
 ### auth_db
-- `users`: id, email (globally unique, lower case), password_hash, full_name, platform_role (USER or SUPER_ADMIN), status (ACTIVE, DISABLED), must_change_password, created_at. Not tenant-scoped.
+- `users`: id, email (globally unique, lower case), nullable password_hash (null only until a Google-created user defines one), full_name, platform_role (USER or SUPER_ADMIN), status (ACTIVE, DISABLED), must_change_password, created_at. Not tenant-scoped.
+- `external_identities`: user_id, provider (`GOOGLE`), provider_subject (Google `sub`), last verified provider_email, timestamps. Unique by provider+subject and user+provider. No provider token is stored.
+- `oauth_link_attempts`: SHA-256 link-ticket hash, user_id, provider subject/email, expiry, consumed_at. It exists only to require the existing password before linking by verified email.
 - `tenants`: id, slug (unique), name, type (INDIVIDUAL, ORGANIZATION), status (ACTIVE, SUSPENDED), primary_color, headline, description, website_url, instagram_url, linkedin_url, youtube_url, logo_image_id, contact_email, created_at.
 - `memberships`: id, tenant_id (`@TenantId`), user_id (UNIQUE), role (TENANT_ADMIN, INSTRUCTOR), status (ACTIVE, DISABLED), created_at.
 - `profiles`: user_id (PK), headline, bio, website_url, instagram_url, linkedin_url, youtube_url, avatar_image_id.
@@ -251,8 +259,8 @@ All under `/api` through the gateway. `P` public, `L` any logged-in user, `S` ST
 
 | Service | Endpoints | Who |
 |---|---|---|
-| auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` | P |
-| auth | `POST /auth/password`, `GET /auth/me`, `GET/PUT /auth/profile`, `POST /auth/images` | L |
+| auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`; `GET /auth/oauth2/google`, `/auth/oauth2/google/status`, `/auth/oauth2/callback/google`; `POST /auth/oauth2/google/link` | P |
+| auth | `POST /auth/password`, `/auth/password/set`, `GET /auth/me`, `GET/PUT /auth/profile`, `POST /auth/images` | L |
 | auth | `POST /auth/publishers` (anonymous with owner data, or logged-in learner), `GET /auth/publishers/slug-available` | P |
 | auth | `PUT /auth/publishers/me`, `GET /auth/team`, `POST /auth/team`, `PATCH /auth/team/{userId}/status`, `POST /auth/team/{userId}/reset-password` | T (organizations for team) |
 | auth | `GET /public/publishers/{slug}`, `/public/instructors/{userId}`, `/public/images/{id}` | P |
@@ -274,7 +282,7 @@ Errors are RFC 7807 without null fields. Never expose entities. List sizes are c
 
 ## 17. Gateway
 
-- Resource server with the auth-service JWKS, issuer and audience validators. Public routes: login, register, refresh, logout, publisher creation, slug check, `/api/public/**`, card callback, and `/api/stream/media/**`.
+- Resource server with the auth-service JWKS, issuer and audience validators. Public routes: login, register, refresh, logout, `/api/auth/oauth2/**`, publisher creation, slug check, `/api/public/**`, card callback, and `/api/stream/media/**`.
 - Routes by path to auth, course, payment and support. No route to notification-service or to Actuator.
 - Rate-limit policies (Redis, fail open, documented): A (login, register, refresh, slug check, by IP), B (authenticated API, key is `sub`), C (media, IP and lesson), D (publisher creation, by IP, about 5 burst then 1 per minute), E (public catalogue, by IP), F (uploads and complaint creation, by `sub`, low rate).
 - Removes inbound `X-Tenant*` and `X-User*` headers. If `must_change_password` is true, only change-password and logout are allowed.
@@ -287,6 +295,10 @@ One domain, one brand (SANAA). Public pages without login: home (search, categor
 - Studio (publishers): dashboard, courses and editor (including video upload with progress and status), discounts, students, reviews, payments review and settings, team (organizations), profile, complaints.
 - Admin: dashboard, users, publishers, courses, reviews, payments, complaints, audit.
 - All user-visible text is French in `src/i18n/fr.ts`. Arco Design only. Tenant color affects only publisher pages and course covers. Access tokens live in memory only.
+- Login and registration keep the normal forms and conditionally show "Continuer avec Google" from
+  the public availability endpoint. The backend callback sets only the refresh cookie; the SPA
+  restores it, keeps the original internal destination in session storage, and never receives a
+  Google token or client secret.
 
 ## 19. Infrastructure, observability, CI
 
@@ -294,7 +306,8 @@ One domain, one brand (SANAA). Public pages without login: home (search, categor
 - Volumes: media, receipts, images, complaint attachments, uploads (temporary), MySQL, Kafka. course-service image includes ffmpeg.
 - Prometheus on every management port, tag `application`, never a tenant tag. Add counters for events processed, outbox state, media jobs by result, complaints opened, admin audit entries.
 - CI: backend `mvn -B verify`, frontend lint, test and build, docker build.
-- Resolved versions (from `mvn dependency:tree` and `npm ls`): Hibernate ORM 7.4.13.Final,
+- Resolved versions (from `mvn dependency:tree` and `npm ls`): Spring Security 7.1.2,
+  Hibernate ORM 7.4.13.Final,
   kafka-clients 4.2.2, Jackson databind 3.1.7, Testcontainers 2.0.5, ArchUnit 1.5.1,
   `@arco-design/web-react` 2.66.18 with React 19.3.1.
 
@@ -312,6 +325,9 @@ One domain, one brand (SANAA). Public pages without login: home (search, categor
 - Video: upload of a non-video file with a video extension is rejected; encoding survives a restart; playback tokens are bound to user, lesson and tenant; expired, cross-lesson, cross-tenant and path traversal requests fail.
 - Complaints: ownership is verified; a publisher sees only complaints about its courses; attachments are validated by magic bytes; resolving with ACCESS_GRANTED creates the enrollment.
 - Burst on login and on publisher creation returns 429. Redis down fails open and is logged.
+- Google login rejects unverified email, bad state/nonce and disabled users; existing email requires
+  the current password before linking; link tickets expire and are one-use; a Google-created user
+  can set exactly one initial local password; normal password login remains valid after linking.
 - A clean clone starts with one Compose command, and CI is green.
 
 ## 21. Not built, and why

@@ -67,7 +67,7 @@ meta tag complete the identity without a registered-trademark symbol.
 
 | Route | Access |
 |---|---|
-| `/`, `/courses`, `/courses/:courseId`, `/categories/:slug`, `/publishers/:slug`, `/instructors/:id`, `/login`, `/register`, `/become-creator`, `/privacy` | public |
+| `/`, `/courses`, `/courses/:courseId`, `/categories/:slug`, `/publishers/:slug`, `/instructors/:id`, `/login`, `/login/google/callback`, `/login/google/link`, `/register`, `/become-creator`, `/privacy` | public |
 | `/me`, `/password` | any authenticated user |
 | `/learn`, `/learn/courses` | `STUDENT`, `INSTRUCTOR` or `TENANT_ADMIN` |
 | `/studio/profile` | `TENANT_ADMIN` or `INSTRUCTOR`; only `TENANT_ADMIN` may save |
@@ -193,14 +193,15 @@ Measured with `npm run build` (Vite 8, minified, gzip in parentheses):
 | Build | Entry | Arco | React | Vendor | Total JS |
 |---|---|---|---|---|---|
 | Before splitting (eager pages, one bundle) | 1,255.94 kB (361.94) | — | — | — | 1,255.94 kB |
-| After splitting | 65.18 kB (22.24) | 954.65 kB (274.81) | 68.60 kB (22.81) | 64.44 kB (23.34) | 1,269.57 kB across 45 chunks |
+| After splitting | 67.28 kB (22.82) | 954.65 kB (274.81) | 68.60 kB (22.81) | 64.44 kB (23.34) | 1,275.82 kB across 50 chunks |
 
 The entry is far below the 500 kB budget. The Arco chunk exceeds it because it is the whole
 component library and its CSS (555 kB) is imported once; isolating it keeps it immutable across
 releases and out of the entry. Removing Arco would be the only way to shrink it, which the design
-system forbids. The 13.63 kB increase in total minified JavaScript is the expected module/chunk
+system forbids. The 19.88 kB increase in total minified JavaScript is the expected module/chunk
 wrapper overhead; a route downloads only its page and shared chunks instead of the 1.26 MB eager
-bundle. The largest page chunk is `CoursePage` at 12.92 kB.
+bundle. The largest page chunk is `CoursePage` at 12.95 kB; the two Google pages are 0.83 kB and
+1.75 kB.
 
 ### Authentication
 
@@ -209,6 +210,14 @@ A page reload calls `POST /api/auth/refresh`, then `GET /api/auth/me`. The share
 rotates the refresh cookie through one shared promise when parallel requests receive 401, retries
 each request once and never refreshes on `/api/auth/login`, `/register`, `/refresh` or `/logout`.
 Registration does not return a token, so the register page signs the new learner in explicitly.
+
+Google OpenID Connect is optional and additive to the normal forms. Login and registration query
+`GET /api/auth/oauth2/google/status`; only an enabled backend renders "Continuer avec Google". The
+button performs a top-level navigation to auth-service, while session storage keeps only a sanitized
+internal return path. The callback page relies on the normal startup refresh, so no Google or SANAA
+token appears in the URL. Existing-email confirmation has its own password-only page, and a
+Google-created account sees "Définir un mot de passe" instead of the current-password form. The
+backend protocol and linking decisions are in ADR 012.
 
 ## Contrast measurements
 
@@ -355,6 +364,11 @@ for every state, review validation and the hidden-review message, the learner em
 guards, a `<script>` description rendered as text, and the lazy routes behind Suspense. The pages are
 rendered through the real router so `useParams` is exercised. Integration tests for the backend
 remain Testcontainers-based; the frontend has no backend dependency in its unit tests.
+
+Google authentication tests keep the normal forms visible, conditionally render the Google button,
+reject a hostile remembered route, consume the return route once, cover callback recovery and
+existing-account password confirmation, and verify that a Google-created account can define its
+first normal password. Provider protocol validation remains an auth-service responsibility.
 
 ### Visual acceptance (2026-11-16)
 

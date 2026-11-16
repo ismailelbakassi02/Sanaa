@@ -6,6 +6,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { fetchMe, login, register } from '../api/auth';
 import { messageForError } from '../api/messages';
 import { AuthShell } from '../components/AuthShell';
+import { GoogleLoginButton } from '../components/GoogleLoginButton';
 import { fr } from '../i18n/fr';
 import { applyServerFieldErrors } from '../lib/formErrors';
 import { passwordIssue } from '../lib/password';
@@ -158,6 +159,7 @@ export function RegisterPage() {
         </Button>
       </Form>
 
+      <GoogleLoginButton />
       <Divider />
       <p className="sanaa-form-footer">
         <span>{fr.auth.register.haveAccount}</span>{' '}

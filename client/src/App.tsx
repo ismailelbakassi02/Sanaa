@@ -42,6 +42,12 @@ const PrivacyPage = lazy(() =>
 const LoginPage = lazy(() =>
   import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })),
 );
+const GoogleCallbackPage = lazy(() =>
+  import('./pages/GoogleCallbackPage').then((m) => ({ default: m.GoogleCallbackPage })),
+);
+const GoogleLinkPage = lazy(() =>
+  import('./pages/GoogleLinkPage').then((m) => ({ default: m.GoogleLinkPage })),
+);
 const RegisterPage = lazy(() =>
   import('./pages/RegisterPage').then((m) => ({ default: m.RegisterPage })),
 );
@@ -89,6 +95,8 @@ export function App() {
     <Suspense fallback={<RouteFallback />}>
       <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/google/callback" element={<GoogleCallbackPage />} />
+      <Route path="/login/google/link" element={<GoogleLinkPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
       <Route element={<PublicLayout />}>

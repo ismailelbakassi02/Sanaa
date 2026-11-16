@@ -31,6 +31,7 @@ export const studentUser: MeResponse = {
   tenantSlug: null,
   tenantType: null,
   mustChangePassword: false,
+  hasPassword: true,
 };
 
 export const instructorUser: MeResponse = {

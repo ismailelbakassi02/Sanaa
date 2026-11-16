@@ -2,6 +2,7 @@ package com.sanaa.auth.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,9 +21,10 @@ import com.sanaa.common.security.MustChangePasswordFilter;
 /**
  * Stateless resource server.
  *
- * <p>Public surface: login, register, refresh, logout, anonymous publisher creation, slug check,
- * public pages and JWKS. Team management and the publisher profile are TENANT_ADMIN, platform
- * oversight is SUPER_ADMIN. A temporary-password session is restricted by the filter below.
+ * <p>Public surface: password and Google login, register, refresh, logout, anonymous publisher
+ * creation, slug check, public pages and JWKS. Team management and the publisher profile are
+ * TENANT_ADMIN, platform oversight is SUPER_ADMIN. A temporary-password session is restricted by
+ * the filter below.
  */
 @Configuration
 @EnableMethodSecurity
@@ -34,6 +36,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(2)
     public SecurityFilterChain apiSecurityFilterChain(
             HttpSecurity http,
             JwtTenantFilter jwtTenantFilter,
@@ -53,6 +56,7 @@ public class SecurityConfig {
                                 "/api/auth/publishers/slug-available",
                                 "/api/public/**",
                                 "/.well-known/jwks.json").permitAll()
+                        .requestMatchers("/api/auth/oauth2/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/auth/team", "/api/auth/team/**",

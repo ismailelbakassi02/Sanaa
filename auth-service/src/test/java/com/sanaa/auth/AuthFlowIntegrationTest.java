@@ -62,12 +62,18 @@ import com.sanaa.auth.domain.User;
 import com.sanaa.auth.domain.UserStatus;
 import com.sanaa.auth.outbox.OutboxEventRepository;
 import com.sanaa.auth.repository.AdminAuditLogRepository;
+import com.sanaa.auth.repository.ExternalIdentityRepository;
 import com.sanaa.auth.repository.ImageRepository;
 import com.sanaa.auth.repository.MembershipRepository;
 import com.sanaa.auth.repository.ProfileRepository;
 import com.sanaa.auth.repository.TenantRepository;
 import com.sanaa.auth.repository.UserRepository;
+import com.sanaa.auth.service.AuthFacade;
+import com.sanaa.auth.service.AuthResult;
 import com.sanaa.auth.service.AuditService;
+import com.sanaa.auth.service.GoogleIdentityService;
+import com.sanaa.auth.service.GoogleLoginOutcome;
+import com.sanaa.auth.service.GoogleProfile;
 import com.sanaa.common.security.JwtClaims;
 import com.sanaa.common.tenant.TenantContext;
 
@@ -131,6 +137,12 @@ class AuthFlowIntegrationTest {
         registry.add("sanaa.jwt.private-key-path", PRIVATE_KEY_PATH::toString);
         registry.add("sanaa.jwt.public-key-path", PUBLIC_KEY_PATH::toString);
         registry.add("sanaa.auth.refresh-cookie-secure", () -> "true");
+        registry.add("sanaa.oauth.google.enabled", () -> "true");
+        registry.add("sanaa.oauth.google.client-id", () -> "test-google-client");
+        registry.add("sanaa.oauth.google.client-secret", () -> "test-google-secret");
+        registry.add("sanaa.oauth.google.redirect-uri",
+                () -> "http://localhost:8080/api/auth/oauth2/callback/google");
+        registry.add("sanaa.oauth.google.client-base-url", () -> "http://localhost:5173");
         registry.add("management.server.port", () -> "0");
         registry.add("DEMO_PASSWORD", () -> PASSWORD);
         registry.add("sanaa.bootstrap.enabled", () -> "true");
@@ -157,6 +169,15 @@ class AuthFlowIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private ExternalIdentityRepository externalIdentityRepository;
+
+    @Autowired
+    private GoogleIdentityService googleIdentityService;
+
+    @Autowired
+    private AuthFacade authFacade;
 
     @Autowired
     private MembershipRepository membershipRepository;
@@ -195,6 +216,101 @@ class AuthFlowIntegrationTest {
     }
 
     // --------------------------------------------------------------- identity: registration
+
+    @Test
+    void googleCreatesAPasswordlessLearnerWhoCanDefineANormalPassword() throws Exception {
+        String email = unique("google-new") + "@example.com";
+        GoogleLoginOutcome outcome = googleIdentityService.begin(new GoogleProfile(
+                unique("subject"), email, "Nouvelle Apprenante", true));
+        assertThat(outcome).isInstanceOf(GoogleLoginOutcome.Authenticated.class);
+        var authenticated = ((GoogleLoginOutcome.Authenticated) outcome).user();
+
+        User created = userRepository.findByEmail(email).orElseThrow();
+        assertThat(created.hasPassword()).isFalse();
+        assertThat(login(email, PASSWORD).status()).isEqualTo(401);
+        assertThat(externalIdentityRepository.findByUserIdAndProvider(created.getId(),
+                com.sanaa.auth.domain.IdentityProvider.GOOGLE)).isPresent();
+
+        AuthResult session = authFacade.issueSession(authenticated);
+        HttpResult meBefore = get("/api/auth/me", session.response().accessToken());
+        assertThat(meBefore.status()).isEqualTo(200);
+        assertThat(json(meBefore).get("hasPassword").asBoolean()).isFalse();
+
+        HttpResult setPassword = postJson("/api/auth/password/set",
+                body("newPassword", PASSWORD), session.response().accessToken());
+        assertThat(setPassword.status()).isEqualTo(200);
+        String updatedToken = json(setPassword).get("accessToken").asString();
+        assertThat(json(get("/api/auth/me", updatedToken)).get("hasPassword").asBoolean()).isTrue();
+        assertThat(login(email, PASSWORD).status()).isEqualTo(200);
+
+        HttpResult duplicate = postJson("/api/auth/password/set",
+                body("newPassword", NEW_PASSWORD), updatedToken);
+        assertProblem(duplicate, 409, "already has a password");
+    }
+
+    @Test
+    void googleRequiresTheExistingPasswordBeforeLinkingByVerifiedEmail() throws Exception {
+        String email = unique("google-link") + "@example.com";
+        HttpResult register = post("/api/auth/register", body(
+                "email", email, "password", PASSWORD, "fullName", "Compte Existant"));
+        assertThat(register.status()).isEqualTo(201);
+        User existing = userRepository.findByEmail(email).orElseThrow();
+        String subject = unique("subject");
+
+        GoogleLoginOutcome outcome = googleIdentityService.begin(
+                new GoogleProfile(subject, email, "Nom Google", true));
+        assertThat(outcome).isInstanceOf(GoogleLoginOutcome.LinkRequired.class);
+        String ticket = ((GoogleLoginOutcome.LinkRequired) outcome).rawTicket();
+        assertThat(externalIdentityRepository.findByUserIdAndProvider(existing.getId(),
+                com.sanaa.auth.domain.IdentityProvider.GOOGLE)).isEmpty();
+
+        String linkCookie = "sanaa_google_link=" + ticket;
+        HttpResult wrongPassword = postJsonWithCookie("/api/auth/oauth2/google/link",
+                body("password", "mot de passe incorrect"), linkCookie);
+        assertProblem(wrongPassword, 401, "Invalid email or password");
+        HttpResult linked = postJsonWithCookie("/api/auth/oauth2/google/link",
+                body("password", PASSWORD), linkCookie);
+        assertThat(linked.status()).isEqualTo(200);
+        assertThat(linked.headers().allValues("set-cookie"))
+                .anySatisfy(cookie -> assertThat(cookie).startsWith("sanaa_refresh="))
+                .anySatisfy(cookie -> assertThat(cookie)
+                        .startsWith("sanaa_google_link=").contains("Max-Age=0"));
+        assertProblem(postJsonWithCookie("/api/auth/oauth2/google/link",
+                body("password", PASSWORD), linkCookie), 401, "Authentication required");
+        assertThat(externalIdentityRepository.findByUserIdAndProvider(existing.getId(),
+                com.sanaa.auth.domain.IdentityProvider.GOOGLE)).isPresent();
+        assertThat(login(email, PASSWORD).status()).isEqualTo(200);
+
+        GoogleLoginOutcome nextLogin = googleIdentityService.begin(
+                new GoogleProfile(subject, email, "Nom Google", true));
+        assertThat(nextLogin).isInstanceOf(GoogleLoginOutcome.Authenticated.class);
+    }
+
+    @Test
+    void googleRejectsAnUnverifiedEmailAndExposesTheConfiguredAuthorizationFlow() throws Exception {
+        assertThatThrownBy(() -> googleIdentityService.begin(new GoogleProfile(
+                unique("subject"), unique("unverified") + "@example.com", "Non Vérifié", false)))
+                .isInstanceOf(com.sanaa.auth.error.UnauthenticatedException.class);
+
+        HttpResult status = get("/api/auth/oauth2/google/status", null);
+        assertThat(status.status()).isEqualTo(200);
+        assertThat(json(status).get("enabled").asBoolean()).isTrue();
+
+        HttpResult start = get("/api/auth/oauth2/google", null);
+        assertThat(start.status()).isEqualTo(302);
+        assertThat(start.headers().firstValue("Location")).contains(
+                "/api/auth/oauth2/authorization/google");
+        HttpResult authorization = get("/api/auth/oauth2/authorization/google", null);
+        assertThat(authorization.status()).isEqualTo(302);
+        assertThat(authorization.headers().allValues("set-cookie")).anySatisfy(cookie ->
+                assertThat(cookie).contains("JSESSIONID=", "Path=/api/auth/oauth2", "HttpOnly",
+                        "Secure", "SameSite=Lax"));
+        assertThat(authorization.headers().firstValue("Location")).hasValueSatisfying(location ->
+                assertThat(java.net.URLDecoder.decode(location, StandardCharsets.UTF_8))
+                        .startsWith("https://accounts.google.com/")
+                        .contains("redirect_uri=http://localhost:8080/api/auth/oauth2/callback/google")
+                        .doesNotContain("test-google-secret"));
+    }
 
     @Test
     void registersALearnerAndLogsInWithoutATenantSlug() throws Exception {
@@ -1480,6 +1596,14 @@ class AuthFlowIntegrationTest {
 
     private HttpResult postJson(String path, Object body, String token) throws Exception {
         return send(jsonRequest(path, body, token));
+    }
+
+    private HttpResult postJsonWithCookie(String path, Object body, String cookie) throws Exception {
+        return send(HttpRequest.newBuilder(URI.create(baseUrl() + path))
+                .header("Content-Type", "application/json")
+                .header("Cookie", cookie)
+                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body)))
+                .build());
     }
 
     private HttpResult putJson(String path, Object body, String token) throws Exception {

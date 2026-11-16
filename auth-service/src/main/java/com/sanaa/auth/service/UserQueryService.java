@@ -47,6 +47,6 @@ public class UserQueryService {
                 jwt.getClaimAsString(JwtClaims.TENANT_ID),
                 jwt.getClaimAsString(JwtClaims.TENANT_SLUG),
                 jwt.getClaimAsString(JwtClaims.TENANT_TYPE),
-                user.isMustChangePassword());
+                user.isMustChangePassword(), user.hasPassword());
     }
 }

@@ -37,6 +37,21 @@ spring:
                     redis-rate-limiter.replenishRate: 2
                     redis-rate-limiter.burstCapacity: 10
 
+            # Google OpenID Connect start, callback, availability and account-link confirmation.
+            # The callback is authenticated by OAuth state/nonce and the link POST also requires a
+            # short-lived HttpOnly ticket plus the existing account password.
+            - id: auth-google-oauth
+              uri: ${AUTH_SERVICE_URI:http://localhost:8081}
+              order: 0
+              predicates:
+                - Path=/api/auth/oauth2/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@clientIpKeyResolver}"
+                    redis-rate-limiter.replenishRate: 2
+                    redis-rate-limiter.burstCapacity: 10
+
             # Logout is public but must still work at the end of a restricted session.
             - id: auth-logout
               uri: ${AUTH_SERVICE_URI:http://localhost:8081}

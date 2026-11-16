@@ -1,4 +1,4 @@
-import { Button, Divider, Form, Input, Message } from '@arco-design/web-react';
+import { Alert, Button, Divider, Form, Input, Message } from '@arco-design/web-react';
 import { IconEmail, IconLock } from '@arco-design/web-react/icon';
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { fetchMe, login } from '../api/auth';
 import { messageForError } from '../api/messages';
 import type { MeResponse } from '../api/types';
 import { AuthShell } from '../components/AuthShell';
+import { GoogleLoginButton } from '../components/GoogleLoginButton';
 import { fr } from '../i18n/fr';
 import { applyServerFieldErrors } from '../lib/formErrors';
 import { sanitizeRedirect } from '../lib/url';
@@ -30,6 +31,7 @@ export function LoginPage() {
   const [form] = Form.useForm<LoginFormValues>();
 
   const from = (location.state as { from?: string } | null)?.from;
+  const googleFailed = new URLSearchParams(location.search).has('googleError');
 
   const handleSubmit = async (values: LoginFormValues) => {
     if (submitting) {
@@ -71,6 +73,9 @@ export function LoginPage() {
 
   return (
     <AuthShell title={fr.auth.login.title} subtitle={fr.auth.login.subtitle}>
+      {googleFailed ? (
+        <Alert type="error" showIcon className="sanaa-alert" content={fr.auth.google.failure} />
+      ) : null}
       <Form form={form} layout="vertical" size="large" onSubmit={handleSubmit}>
         <Form.Item
           label={fr.auth.login.emailLabel}
@@ -112,6 +117,7 @@ export function LoginPage() {
         </Button>
       </Form>
 
+      <GoogleLoginButton from={from} />
       <Divider />
       <p className="sanaa-form-footer">
         <span>{fr.auth.login.noAccount}</span>{' '}

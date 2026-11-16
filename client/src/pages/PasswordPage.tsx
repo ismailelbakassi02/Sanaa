@@ -3,7 +3,7 @@ import { IconLock } from '@arco-design/web-react/icon';
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { changePassword, fetchMe, logout } from '../api/auth';
+import { changePassword, fetchMe, logout, setInitialPassword } from '../api/auth';
 import { messageForError } from '../api/messages';
 import { PageHeader } from '../components/PageHeader';
 import { fr } from '../i18n/fr';
@@ -12,7 +12,7 @@ import { passwordIssue } from '../lib/password';
 import { useAuthStore } from '../store/auth';
 
 interface PasswordFormValues {
-  currentPassword: string;
+  currentPassword?: string;
   newPassword: string;
   confirmPassword: string;
 }
@@ -42,6 +42,7 @@ export function PasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<PasswordFormValues>();
   const forced = user?.mustChangePassword === true;
+  const hasPassword = user?.hasPassword ?? true;
 
   const handleLogout = async () => {
     try {
@@ -62,20 +63,22 @@ export function PasswordPage() {
       form.setFields({ confirmPassword: { error: { message: fr.password.mismatch } } });
       return;
     }
-    if (values.currentPassword === values.newPassword) {
+    if (hasPassword && values.currentPassword === values.newPassword) {
       form.setFields({ newPassword: { error: { message: fr.password.same } } });
       return;
     }
     setSubmitting(true);
     try {
-      const { accessToken } = await changePassword({
-        currentPassword: values.currentPassword,
-        newPassword: values.newPassword,
-      });
+      const { accessToken } = hasPassword
+        ? await changePassword({
+            currentPassword: values.currentPassword ?? '',
+            newPassword: values.newPassword,
+          })
+        : await setInitialPassword({ newPassword: values.newPassword });
       useAuthStore.getState().setAccessToken(accessToken);
       const me = await fetchMe();
       useAuthStore.getState().setSession(accessToken, me);
-      Message.success(fr.password.success);
+      Message.success(hasPassword ? fr.password.success : fr.password.setSuccess);
       navigate('/me', { replace: true });
     } catch (error) {
       if (!applyServerFieldErrors(form, error)) {
@@ -88,7 +91,10 @@ export function PasswordPage() {
 
   return (
     <div className="sanaa-page sanaa-page--narrow">
-      <PageHeader title={fr.password.title} subtitle={fr.password.subtitle} />
+      <PageHeader
+        title={hasPassword ? fr.password.title : fr.password.setTitle}
+        subtitle={hasPassword ? fr.password.subtitle : fr.password.setSubtitle}
+      />
 
       {forced ? (
         <Alert
@@ -102,21 +108,23 @@ export function PasswordPage() {
 
       <Card bordered className="sanaa-card" bodyStyle={{ padding: 24 }}>
         <Form form={form} layout="vertical" onSubmit={handleSubmit}>
-          <Form.Item
-            label={fr.password.currentLabel}
-            field="currentPassword"
-            rules={[{ required: true, message: fr.common.required }]}
-          >
-            <Input.Password
-              placeholder={fr.password.currentPlaceholder}
-              autoComplete="current-password"
-              prefix={
-                <span aria-hidden="true">
-                  <IconLock />
-                </span>
-              }
-            />
-          </Form.Item>
+          {hasPassword ? (
+            <Form.Item
+              label={fr.password.currentLabel}
+              field="currentPassword"
+              rules={[{ required: true, message: fr.common.required }]}
+            >
+              <Input.Password
+                placeholder={fr.password.currentPlaceholder}
+                autoComplete="current-password"
+                prefix={
+                  <span aria-hidden="true">
+                    <IconLock />
+                  </span>
+                }
+              />
+            </Form.Item>
+          ) : null}
 
           <Form.Item
             label={fr.password.newLabel}

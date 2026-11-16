@@ -23,7 +23,7 @@ public class AuthMetrics {
                 .description("Publishers created")
                 .register(registry);
         this.usersRegistered = Counter.builder("sanaa.users.registered")
-                .description("Global accounts registered through the public form")
+                .description("Global accounts registered through public authentication flows")
                 .register(registry);
     }
 

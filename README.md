@@ -13,7 +13,7 @@ est réellement implémenté aujourd'hui.
 | Module | État | Périmètre |
 |---|---|---|
 | `common` | Terminé | Contexte de locataire et `@TenantId`, claims JWT, modèle de rôles, enveloppe d'événement JSON |
-| `auth-service` | Terminé | Comptes globaux, création de créateurs, rotation des jetons de rafraîchissement, équipes et profils, images, pages publiques des créateurs, administration de la plateforme et audit, outbox |
+| `auth-service` | Terminé | Comptes globaux, connexion mot de passe et Google OpenID Connect, rotation des jetons de rafraîchissement, création de créateurs, équipes et profils, images, pages publiques, administration et audit, outbox |
 | `gateway` | Terminé | Validation JWT, routage par service propriétaire, limites de débit Redis, nettoyage des en-têtes |
 | `course-service` | En cours | Catalogue public et recherche, cours, modules, leçons, inscriptions, avis ; médias et lecture vidéo en attente |
 | `payment-service` | En cours | Soumission avec justificatif, validation, outbox Kafka ; le reste du parcours d'achat n'est pas encore accepté |
@@ -29,7 +29,7 @@ Versions backend résolues par le build et consignées dans la section Infrastru
 `docs/architecture.md` :
 
 - Java 27
-- Spring Boot 4.1.2 (Spring Framework 7, Spring Security 7)
+- Spring Boot 4.1.2 (Spring Framework 7, Spring Security 7.1.2)
 - Spring Cloud 2025.1.4
 - Hibernate ORM 7.4.13.Final
 - Jackson 3.1.7
@@ -115,6 +115,39 @@ existantes. Une base locale créée par une version antérieure contient encore 
 démonstration à côté des créateurs actuels ; repartir d'un volume vide pour obtenir exactement les
 comptes ci-dessus. Le script d'initialisation MySQL ne s'exécute lui aussi que sur un volume vide.
 Voir la procédure de réinitialisation plus bas.
+
+### Connexion Google en local
+
+La connexion e-mail/mot de passe reste toujours disponible. Google est un second moyen d'entrer
+dans le même compte SANAA et produit les mêmes jetons SANAA ; aucun jeton Google n'est conservé dans
+le navigateur ou dans la base.
+
+Créer un client OAuth de type « Application Web » dans Google Cloud avec :
+
+```text
+Origine JavaScript autorisée : http://localhost:5173
+URI de redirection autorisé  : http://localhost:8080/api/auth/oauth2/callback/google
+```
+
+Puis définir uniquement dans `.env` :
+
+```dotenv
+GOOGLE_OAUTH_ENABLED=true
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:8080/api/auth/oauth2/callback/google
+CLIENT_BASE_URL=http://localhost:5173
+```
+
+Ne jamais placer le secret dans une variable `VITE_*`, dans le JSON frontend ou dans Git. Tant que
+l'application OAuth est en mode test, ajouter les comptes Google autorisés dans la liste des
+utilisateurs test de l'écran de consentement. Si Google signale `redirect_uri_mismatch`, vérifier la
+correspondance exacte du protocole, du port et du chemin ci-dessus.
+
+Un nouvel e-mail Google vérifié crée un compte apprenant sans mot de passe ; la page « Définir un
+mot de passe » permet ensuite d'activer aussi la connexion normale. Si l'e-mail appartient déjà à un
+compte SANAA, son mot de passe actuel est demandé avant l'association. Voir
+`docs/adr/012-google-oidc.md`.
 
 ### Déclencheurs d'audit et journalisation binaire
 
@@ -241,7 +274,8 @@ Le fichier `client/.env` est facultatif. La seule variable documentée par `clie
 
 Ouvrir ensuite <http://localhost:5173>. Les routes publiques sont `/`, `/courses`,
 `/courses/:courseId`, `/categories/:slug`, `/publishers/:slug`, `/instructors/:id`, `/login`,
-`/register`, `/become-creator` et `/privacy`. Une fois connecté, `/me`, `/password`, `/learn`,
+`/login/google/callback`, `/login/google/link`, `/register`, `/become-creator` et `/privacy`. Une
+fois connecté, `/me`, `/password`, `/learn`,
 `/learn/courses`, `/studio/profile`, `/studio/team` et `/admin` s'ajoutent selon le rôle. Les pages
 de paiement `/my-payments` et `/payments` restent joignables par URL mais aucun menu n'y mène tant
 que le parcours d'achat n'est pas accepté.
@@ -295,7 +329,7 @@ et leçon (médias). Il n'y a plus de vérification `Host` contre un locataire :
 sélectionné par son slug dans l'URL publique, pas par sous-domaine, donc nginx n'a pas besoin de
 préserver un `Host` particulier.
 
-Les routes publiques sont `POST /api/auth/login|register|refresh|logout`,
+Les routes publiques sont `POST /api/auth/login|register|refresh|logout`, `/api/auth/oauth2/**`,
 `POST /api/auth/publishers`, `GET /api/auth/publishers/slug-available` et `GET /api/public/**`,
 ainsi que la lecture des médias et le callback signé de la carte. La création d'un créateur a sa
 propre politique, plus stricte. Une session dont le claim `must_change_password` vaut vrai ne peut

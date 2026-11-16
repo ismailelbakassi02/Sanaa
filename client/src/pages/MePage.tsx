@@ -137,7 +137,7 @@ export function MePage() {
                 </Link>
               ) : null}
               <Link to="/password" className="sanaa-link">
-                {fr.nav.password}
+                {user.hasPassword ? fr.nav.password : fr.password.setTitle}
               </Link>
             </div>
 

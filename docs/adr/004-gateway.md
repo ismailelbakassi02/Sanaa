@@ -7,6 +7,7 @@
 > The routes, public path list, Host-versus-tenant check and rate-limit keys below are superseded:
 > v2 splits routes by owning service (including support on 8085), removes the Host check, adds
 > policies for publisher creation and public pages, and keys policy B by `sub` only. See ADR 010.
+> `/api/auth/oauth2/**` is also public and IP-limited for Google login; see ADR 012.
 
 ## Context
 

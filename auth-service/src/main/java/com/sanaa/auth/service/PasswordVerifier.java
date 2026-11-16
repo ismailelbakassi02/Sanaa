@@ -25,6 +25,10 @@ public class PasswordVerifier {
     }
 
     public boolean matches(String rawPassword, String passwordHash) {
+        if (passwordHash == null) {
+            performDummyVerification(rawPassword);
+            return false;
+        }
         return passwordEncoder.matches(rawPassword, passwordHash);
     }
 

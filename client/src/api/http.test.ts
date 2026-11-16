@@ -162,6 +162,25 @@ describe('HTTP refresh interceptor', () => {
     expect(refreshCalls).toBe(0);
   });
 
+  it('never refreshes a failed Google link confirmation', async () => {
+    let refreshCalls = 0;
+    const adapter: AxiosAdapter = async (config) => {
+      throw unauthorized(config);
+    };
+    const client = createHttpClient({
+      adapter,
+      refresh: async () => {
+        refreshCalls += 1;
+        return 'unused';
+      },
+    });
+
+    await expect(
+      client.post('/api/auth/oauth2/google/link', { password: 'incorrect' }),
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(refreshCalls).toBe(0);
+  });
+
   it('attaches the in-memory bearer token', async () => {
     useAuthStore.setState({ accessToken: 'stored-token' });
     let seen: string | null = null;

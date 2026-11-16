@@ -46,11 +46,24 @@ export interface MeResponse {
   tenantSlug: string | null;
   tenantType: PublisherType | null;
   mustChangePassword: boolean;
+  hasPassword: boolean;
 }
 
 export interface ChangePasswordPayload {
   currentPassword: string;
   newPassword: string;
+}
+
+export interface SetPasswordPayload {
+  newPassword: string;
+}
+
+export interface GoogleOAuthStatusResponse {
+  enabled: boolean;
+}
+
+export interface GoogleLinkPayload {
+  password: string;
 }
 
 export interface ProfileResponse {

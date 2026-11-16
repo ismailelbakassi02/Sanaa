@@ -8,6 +8,9 @@
 > register, `tenant_id` is optional in a token, the role claim is derived from a membership, and the
 > platform tenant and its administration endpoints are gone. The claims list and the administration
 > sections below are superseded by ADR 010.
+>
+> Google OpenID Connect is additive and documented by [ADR 012](012-google-oidc.md). It still ends
+> in the same SANAA access token and refresh-cookie model defined here.
 
 ## Context
 

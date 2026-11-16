@@ -57,6 +57,14 @@ server:
   error:
     include-message: never
     include-stacktrace: never
+  servlet:
+    session:
+      timeout: 5m
+      cookie:
+        http-only: true
+        secure: ${COOKIE_SECURE:true}
+        same-site: lax
+        path: /api/auth/oauth2
 
 management:
   server:
@@ -73,6 +81,14 @@ sanaa:
   auth:
     refresh-cookie-secure: ${COOKIE_SECURE:true}
     refresh-token-ttl: P7D
+  oauth:
+    google:
+      enabled: ${GOOGLE_OAUTH_ENABLED:false}
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/auth/oauth2/callback/google}
+      client-base-url: ${CLIENT_BASE_URL:http://localhost:5173}
+      link-ticket-ttl: PT10M
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:}
