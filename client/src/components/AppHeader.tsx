@@ -68,7 +68,7 @@ export function AppHeader() {
             <BrandLogo variant="mark" height={30} />
             <span className="sanaa-header__wordmark">{fr.app.name}</span>
           </Link>
-          {user ? <MainMenu /> : null}
+          <MainMenu />
         </div>
 
         <div className="sanaa-header__actions">

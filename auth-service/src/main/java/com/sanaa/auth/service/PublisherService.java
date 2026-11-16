@@ -11,6 +11,7 @@ import com.sanaa.auth.domain.User;
 import com.sanaa.auth.domain.UserStatus;
 import com.sanaa.auth.error.BadRequestException;
 import com.sanaa.auth.error.ConflictException;
+import com.sanaa.auth.error.NotFoundException;
 import com.sanaa.auth.error.UnauthenticatedException;
 import com.sanaa.auth.crosstenant.MembershipViewRepository;
 import com.sanaa.auth.repository.TenantRepository;
@@ -115,6 +116,18 @@ public class PublisherService {
             return new SlugAvailabilityResponse(slug, false);
         }
         return new SlugAvailabilityResponse(normalized, !tenantRepository.existsBySlug(normalized));
+    }
+
+    /**
+     * The publisher's own full profile, including the contact email and logo id.
+     *
+     * <p>The tenant id is the one from the validated JWT, never a request parameter, so an admin of
+     * one publisher can never read another publisher's private profile.
+     */
+    public PublisherProfileResponse getOwnProfile(String tenantId) {
+        return tenantRepository.findById(tenantId)
+                .map(PublisherWriter::toProfile)
+                .orElseThrow(() -> new NotFoundException("Publisher not found."));
     }
 
     public PublisherProfileResponse updatePublisher(String tenantId, UpdatePublisherRequest request) {

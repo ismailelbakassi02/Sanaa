@@ -199,7 +199,7 @@ spring:
               uri: ${COURSE_SERVICE_URI:http://localhost:8082}
               order: 10
               predicates:
-                - Path=/api/studio/courses/**,/api/studio/lessons/**,/api/studio/reviews/**,/api/studio/stats
+                - Path=/api/studio/courses/**,/api/studio/modules/**,/api/studio/lessons/**,/api/studio/reviews/**,/api/studio/stats
               filters:
                 - name: RequestRateLimiter
                   args:
@@ -223,7 +223,10 @@ spring:
               uri: ${COURSE_SERVICE_URI:http://localhost:8082}
               order: 10
               predicates:
-                - Path=/api/courses/**,/api/modules/**,/api/lessons/**,/api/enrollments/**,/api/stream/**
+                # The instructor authoring API moved under /api/studio, and the old /api/modules,
+                # /api/lessons and /api/enrollments endpoints were removed with it. What remains
+                # here is the learner write surface (free enrollment and reviews) and streaming.
+                - Path=/api/courses/**,/api/stream/**
               filters:
                 - name: RequestRateLimiter
                   args:

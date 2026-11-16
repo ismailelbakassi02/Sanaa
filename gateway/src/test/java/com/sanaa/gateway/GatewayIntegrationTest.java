@@ -197,9 +197,6 @@ class GatewayIntegrationTest {
         String token = TOKENS.learnerToken("user-course");
         for (String path : List.of(
                 "/api/courses/1",
-                "/api/modules/1",
-                "/api/lessons/1",
-                "/api/enrollments/1",
                 "/api/stream/1/status")) {
             get(path, token).expectStatus().isOk()
                     .expectBody(String.class)
@@ -219,14 +216,27 @@ class GatewayIntegrationTest {
     @Test
     void routesLearnerAndStudioPathsToTheOwningService() {
         String token = TOKENS.publisherToken("user-studio", "INSTRUCTOR");
+        String learner = TOKENS.learnerToken("user-learner");
 
-        get("/api/learner/courses", TOKENS.learnerToken("user-learner"))
-                .expectStatus().isOk()
+        for (String path : List.of(
+                "/api/learner/home",
+                "/api/learner/enrollments",
+                "/api/learner/courses/1/purchase-info",
+                "/api/learner/courses/1/my-review")) {
+            get(path, learner).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"course\""));
+        }
+        post("/api/courses/1/enroll", learner).expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"service\":\"course\""));
+        post("/api/courses/1/reviews", learner).expectStatus().isOk()
                 .expectBody(String.class)
                 .value(body -> assertThat(body).contains("\"service\":\"course\""));
 
         for (String path : List.of(
                 "/api/studio/courses/1",
+                "/api/studio/modules/1",
                 "/api/studio/lessons/1",
                 "/api/studio/reviews",
                 "/api/studio/stats")) {
@@ -301,9 +311,16 @@ class GatewayIntegrationTest {
                     .expectBody(String.class)
                     .value(body -> assertThat(body).contains("\"service\":\"auth\""));
         }
-        get("/api/public/courses", null).expectStatus().isOk()
-                .expectBody(String.class)
-                .value(body -> assertThat(body).contains("\"service\":\"course\""));
+        for (String path : List.of(
+                "/api/public/categories",
+                "/api/public/courses",
+                "/api/public/courses/trending",
+                "/api/public/courses/1",
+                "/api/public/courses/1/reviews")) {
+            get(path, null).expectStatus().isOk()
+                    .expectBody(String.class)
+                    .value(body -> assertThat(body).contains("\"service\":\"course\""));
+        }
     }
 
     @Test

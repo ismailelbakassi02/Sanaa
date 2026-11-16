@@ -1,6 +1,6 @@
-# Seed the demo courses, modules and lessons through the public API.
+# Seed the marketplace demo through the gateway.
 # Compatible with PowerShell 5.1. This file is intentionally ASCII-only.
-# The French course content lives as UTF-8 in demo-courses.json and is read with -Encoding UTF8.
+# The French demo content lives as UTF-8 in demo-courses.json and is read with -Encoding UTF8.
 
 $ErrorActionPreference = 'Stop'
 
@@ -37,19 +37,31 @@ if (-not $demoPassword) {
 
 $data = Get-Content -Raw -Encoding UTF8 $DataFile | ConvertFrom-Json
 
-# Fail fast on a data file that would produce an inconsistent demo, before any request is sent.
+# A missing "reviews" key converts to $null, and @($null) is a one-element array in Windows
+# PowerShell. Filter the empty entry so a course without reviews really has none.
+function Get-CourseReviews($Course) {
+    return @($Course.reviews | Where-Object { $_ -and $_.learnerEmail })
+}
+
 function Test-DemoData {
-    foreach ($tenant in $data.tenants) {
-        if (-not $tenant.slug -or -not $tenant.instructorEmail) {
-            throw 'Every tenant needs a slug and an instructorEmail.'
+    if (-not $data.publishers -or $data.publishers.Count -eq 0) {
+        throw 'The demo file must declare at least one publisher.'
+    }
+    $published = 0
+    $drafts = 0
+    $reviewTotal = 0
+    $freePublishedWithoutReview = 0
+    foreach ($publisher in $data.publishers) {
+        if (-not $publisher.slug -or $publisher.courses.Count -eq 0) {
+            throw 'Every publisher needs a slug and at least one course.'
         }
-        if ($tenant.courses.Count -ne 3) {
-            throw "Tenant '$($tenant.slug)' must declare exactly three courses."
-        }
-        $published = 0
-        foreach ($course in $tenant.courses) {
-            if (-not $course.title -or -not $course.description) {
-                throw "A course of tenant '$($tenant.slug)' is missing a title or description."
+        foreach ($course in $publisher.courses) {
+            if (-not $course.instructorEmail -or -not $course.title -or -not $course.summary -or
+                -not $course.description) {
+                throw "Course '$($course.title)' is missing an instructorEmail, title, summary or description."
+            }
+            if (-not $course.categorySlug) {
+                throw "Course '$($course.title)' needs a categorySlug."
             }
             if ($course.currency -ne 'MAD') {
                 throw "Course '$($course.title)' must use MAD."
@@ -57,21 +69,29 @@ function Test-DemoData {
             if ($course.price -lt 0) {
                 throw "Course '$($course.title)' has a negative price."
             }
+            if (-not $course.skills -or $course.skills.Count -eq 0) {
+                throw "Course '$($course.title)' needs at least one skill: the publish rule requires it."
+            }
+            if ($course.tags.Count -gt 10) {
+                throw "Course '$($course.title)' has more than ten tags."
+            }
             if ($course.status -eq 'PUBLISHED') {
                 $published++
-            } elseif ($course.status -ne 'DRAFT') {
+            } elseif ($course.status -eq 'DRAFT') {
+                $drafts++
+            } else {
                 throw "Course '$($course.title)' has an unknown status '$($course.status)'."
             }
-            if ($course.modules.Count -ne 2) {
-                throw "Course '$($course.title)' must declare exactly two modules."
+            if ($course.modules.Count -eq 0) {
+                throw "Course '$($course.title)' must declare at least one module."
             }
             $freeLessons = 0
             foreach ($module in $course.modules) {
                 if (-not $module.title) {
                     throw "A module of course '$($course.title)' has no title."
                 }
-                if ($module.lessons.Count -lt 2 -or $module.lessons.Count -gt 3) {
-                    throw "Module '$($module.title)' must declare two or three lessons."
+                if ($module.lessons.Count -eq 0) {
+                    throw "Module '$($module.title)' must declare at least one lesson."
                 }
                 foreach ($lesson in $module.lessons) {
                     if (-not $lesson.title) {
@@ -85,13 +105,35 @@ function Test-DemoData {
                     }
                 }
             }
-            if ($freeLessons -ne 1) {
-                throw "Course '$($course.title)' must have exactly one free-preview lesson."
+            if ($course.status -eq 'PUBLISHED' -and $freeLessons -eq 0) {
+                throw "Published course '$($course.title)' needs one free-preview lesson."
+            }
+            $reviews = Get-CourseReviews $course
+            if ($reviews.Count -gt 0) {
+                if ($course.price -ne 0) {
+                    throw "Course '$($course.title)' has reviews but is not free. Only free enrollment can be seeded without a payment."
+                }
+                if ($course.status -ne 'PUBLISHED') {
+                    throw "Course '$($course.title)' has reviews but is not published."
+                }
+                $reviewTotal += $reviews.Count
+            } else {
+                if ($course.status -eq 'PUBLISHED' -and $course.price -eq 0) {
+                    $freePublishedWithoutReview++
+                }
             }
         }
-        if ($published -ne 2) {
-            throw "Tenant '$($tenant.slug)' must have exactly two PUBLISHED courses."
-        }
+    }
+    if ($published -eq 0 -or $drafts -eq 0) {
+        throw 'The demo needs at least one published course and one draft course.'
+    }
+    # The catalogue must show a real rating sort and an empty one: at least ten reviews, and at
+    # least one free published course that no learner has reviewed.
+    if ($reviewTotal -lt 10) {
+        throw "The demo needs at least ten reviews, found $reviewTotal."
+    }
+    if ($freePublishedWithoutReview -eq 0) {
+        throw 'The demo needs at least one free published course without reviews.'
     }
 }
 
@@ -100,7 +142,7 @@ function Invoke-Gateway {
         [string]$Method,
         [string]$Path,
         [string]$Token,
-        [string]$JsonBody
+        [object]$JsonBody
     )
 
     # A 429 means the gateway rate limiter rejected the call before it reached a service, so a
@@ -115,12 +157,13 @@ function Invoke-Gateway {
         }
 
         $tempFile = $null
-        if ($JsonBody) {
+        if ($null -ne $JsonBody) {
             # PowerShell strips embedded quotes when an inline JSON argument reaches a native
             # command, and Out-File adds a BOM. Write UTF-8 without BOM to a file instead.
+            $json = $JsonBody | ConvertTo-Json -Depth 10 -Compress
             $tempFile = [System.IO.Path]::GetTempFileName()
             [System.IO.File]::WriteAllText(
-                $tempFile, $JsonBody, (New-Object System.Text.UTF8Encoding -ArgumentList $false))
+                $tempFile, $json, (New-Object System.Text.UTF8Encoding -ArgumentList $false))
             $curlArgs += @('--data-binary', "@$tempFile")
         }
 
@@ -157,24 +200,27 @@ function Assert-Status {
     }
 }
 
-function Connect-Instructor {
-    param([string]$TenantSlug, [string]$Email)
-
-    $payload = @{
-        tenantSlug = $TenantSlug
-        email = $Email
-        password = $demoPassword
-    } | ConvertTo-Json -Compress
-
-    $response = Invoke-Gateway -Method 'POST' -Path '/api/auth/login' -JsonBody $payload
-    Assert-Status $response @(200) "Login for $Email"
-    $json = $response.Body | ConvertFrom-Json
-    if (-not $json.accessToken) {
-        throw "Login for $Email returned no access token."
+function Connect-User {
+    param([string]$Email)
+    if (-not $script:tokens.ContainsKey($Email)) {
+        $payload = @{
+            email    = $Email
+            password = $demoPassword
+        }
+        $response = Invoke-Gateway -Method 'POST' -Path '/api/auth/login' -JsonBody $payload
+        Assert-Status $response @(200) "Login for $Email"
+        $json = $response.Body | ConvertFrom-Json
+        if (-not $json.accessToken) {
+            throw "Login for $Email returned no access token."
+        }
+        $script:tokens[$Email] = $json.accessToken
     }
-    return $json.accessToken
+    return $script:tokens[$Email]
 }
 
+$script:tokens = @{}
+# Course ids by "publisher|title", filled while creating or skipping, used by the review phase.
+$courseIds = @{}
 $rows = New-Object System.Collections.ArrayList
 $createdCount = 0
 $skippedCount = 0
@@ -182,57 +228,67 @@ $skippedCount = 0
 try {
     Test-DemoData
 
-    foreach ($tenant in $data.tenants) {
-        $instructorEmail = $tenant.instructorEmail
-        Write-Host ("Tenant {0}: logging in as {1}" -f $tenant.slug, $instructorEmail)
-        $token = Connect-Instructor -TenantSlug $tenant.slug -Email $instructorEmail
+    $categoryResponse = Invoke-Gateway -Method 'GET' -Path '/api/public/categories'
+    Assert-Status $categoryResponse @(200) 'Reading the public categories'
+    $categoryIds = @{}
+    foreach ($category in ($categoryResponse.Body | ConvertFrom-Json)) {
+        $categoryIds[$category.slug] = $category.id
+    }
 
-        $meResponse = Invoke-Gateway -Method 'GET' -Path '/api/auth/me' -Token $token
-        Assert-Status $meResponse @(200) 'Reading the instructor profile'
-        $instructorId = ($meResponse.Body | ConvertFrom-Json).id
-
-        # The listing returns this instructor's own courses in every status plus other
-        # instructors' published courses, so filter by instructorId before deciding to skip.
-        $listResponse = Invoke-Gateway -Method 'GET' -Path '/api/courses?page=0&size=50' -Token $token
-        Assert-Status $listResponse @(200) 'Listing existing courses'
-        $existing = New-Object 'System.Collections.Generic.HashSet[string]'
-        foreach ($item in ($listResponse.Body | ConvertFrom-Json).items) {
-            if ($item.instructorId -eq $instructorId) {
-                [void]$existing.Add([string]$item.title)
+    foreach ($publisher in $data.publishers) {
+        foreach ($course in $publisher.courses) {
+            if (-not $categoryIds.ContainsKey($course.categorySlug)) {
+                throw "Unknown category slug '$($course.categorySlug)' for course '$($course.title)'."
             }
-        }
 
-        foreach ($course in $tenant.courses) {
-            if ($existing.Contains([string]$course.title)) {
+            $token = Connect-User -Email $course.instructorEmail
+            $listResponse = Invoke-Gateway -Method 'GET' -Path '/api/studio/courses?page=0&size=50' -Token $token
+            Assert-Status $listResponse @(200) 'Listing studio courses'
+            $existing = @{}
+            foreach ($item in ($listResponse.Body | ConvertFrom-Json).items) {
+                $existing[[string]$item.title] = $item.id
+            }
+
+            if ($existing.ContainsKey([string]$course.title)) {
+                $courseIds["$($publisher.slug)|$($course.title)"] = $existing[[string]$course.title]
                 [void]$rows.Add([pscustomobject]@{
-                    Tenant  = $tenant.slug
-                    Course  = $course.title
-                    Target  = $course.status
-                    Modules = '-'
-                    Lessons = '-'
-                    Result  = 'skipped (exists)'
+                    Publisher = $publisher.slug
+                    Course    = $course.title
+                    Status    = $course.status
+                    Modules   = '-'
+                    Lessons   = '-'
+                    Reviews   = (Get-CourseReviews $course).Count
+                    Result    = 'skipped (exists)'
                 })
                 $skippedCount++
                 continue
             }
 
             $coursePayload = @{
-                title       = $course.title
-                description = $course.description
-                price       = $course.price
-                currency    = $course.currency
-            } | ConvertTo-Json -Compress
-            $courseResponse = Invoke-Gateway -Method 'POST' -Path '/api/courses' `
+                title        = $course.title
+                summary      = $course.summary
+                description  = $course.description
+                categoryId   = $categoryIds[$course.categorySlug]
+                level        = $course.level
+                language     = $course.language
+                skills       = @($course.skills)
+                requirements = @($course.requirements)
+                price        = $course.price
+                currency     = $course.currency
+                tags         = @($course.tags)
+            }
+            $courseResponse = Invoke-Gateway -Method 'POST' -Path '/api/studio/courses' `
                 -Token $token -JsonBody $coursePayload
             Assert-Status $courseResponse @(201) "Creating course '$($course.title)'"
             $courseId = ($courseResponse.Body | ConvertFrom-Json).id
+            $courseIds["$($publisher.slug)|$($course.title)"] = $courseId
 
             $moduleCount = 0
             $lessonCount = 0
             foreach ($module in $course.modules) {
-                $modulePayload = @{ title = $module.title } | ConvertTo-Json -Compress
-                $moduleResponse = Invoke-Gateway -Method 'POST' -Path "/api/courses/$courseId/modules" `
-                    -Token $token -JsonBody $modulePayload
+                $moduleResponse = Invoke-Gateway -Method 'POST' `
+                    -Path "/api/studio/courses/$courseId/modules" `
+                    -Token $token -JsonBody @{ title = $module.title }
                 Assert-Status $moduleResponse @(201) "Creating module '$($module.title)'"
                 $moduleId = ($moduleResponse.Body | ConvertFrom-Json).id
                 $moduleCount++
@@ -240,32 +296,88 @@ try {
                 foreach ($lesson in $module.lessons) {
                     $lessonPayload = @{
                         title           = $lesson.title
+                        description     = $lesson.description
                         durationSeconds = $lesson.durationSeconds
                         freePreview     = [bool]$lesson.freePreview
-                    } | ConvertTo-Json -Compress
+                    }
                     $lessonResponse = Invoke-Gateway -Method 'POST' `
-                        -Path "/api/modules/$moduleId/lessons" -Token $token -JsonBody $lessonPayload
+                        -Path "/api/studio/modules/$moduleId/lessons" `
+                        -Token $token -JsonBody $lessonPayload
                     Assert-Status $lessonResponse @(201) "Creating lesson '$($lesson.title)'"
                     $lessonCount++
                 }
             }
 
+            if ($course.discount) {
+                $endsAt = (Get-Date).ToUniversalTime().AddDays(
+                    [int]$course.discount.endsInDays).ToString('yyyy-MM-ddTHH:mm:ssZ')
+                $discountResponse = Invoke-Gateway -Method 'PUT' `
+                    -Path "/api/studio/courses/$courseId/discount" -Token $token `
+                    -JsonBody @{ price = $course.discount.price; endsAt = $endsAt }
+                Assert-Status $discountResponse @(200) "Adding the discount of '$($course.title)'"
+            }
+
             if ($course.status -eq 'PUBLISHED') {
-                $publishResponse = Invoke-Gateway -Method 'PATCH' `
-                    -Path "/api/courses/$courseId/publish" -Token $token
+                $publishResponse = Invoke-Gateway -Method 'POST' `
+                    -Path "/api/studio/courses/$courseId/publish" -Token $token
                 Assert-Status $publishResponse @(200) "Publishing course '$($course.title)'"
             }
 
-            [void]$existing.Add([string]$course.title)
             [void]$rows.Add([pscustomobject]@{
-                Tenant  = $tenant.slug
-                Course  = $course.title
-                Target  = $course.status
-                Modules = $moduleCount
-                Lessons = $lessonCount
-                Result  = 'created'
+                Publisher = $publisher.slug
+                Course    = $course.title
+                Status    = $course.status
+                Modules   = $moduleCount
+                Lessons   = $lessonCount
+                Reviews   = (Get-CourseReviews $course).Count
+                Result    = 'created'
             })
             $createdCount++
+        }
+    }
+
+    # Second phase: enroll the demo learners and post the reviews. It runs on every seed, because
+    # the first phase skips existing courses. Both endpoints are idempotent: enrollment answers 201
+    # or 409 when the learner already has access, and a review is an upsert that returns 201, so a
+    # rerun refreshes the ratings without duplicating anything.
+    $seededReviews = 0
+    $seededReplies = 0
+    foreach ($publisher in $data.publishers) {
+        foreach ($course in $publisher.courses) {
+            $reviews = Get-CourseReviews $course
+            if ($reviews.Count -eq 0) {
+                continue
+            }
+            $courseId = $courseIds["$($publisher.slug)|$($course.title)"]
+            if (-not $courseId) {
+                throw "Course '$($course.title)' was not created or found, cannot seed its reviews."
+            }
+            foreach ($review in $reviews) {
+                $learnerToken = Connect-User -Email $review.learnerEmail
+                $enrollResponse = Invoke-Gateway -Method 'POST' `
+                    -Path "/api/courses/$courseId/enroll" -Token $learnerToken
+                Assert-Status $enrollResponse @(201, 409) "Enrolling $($review.learnerEmail)"
+                $reviewResponse = Invoke-Gateway -Method 'POST' `
+                    -Path "/api/courses/$courseId/reviews" -Token $learnerToken `
+                    -JsonBody @{ rating = $review.rating; comment = $review.comment }
+                Assert-Status $reviewResponse @(201) "Reviewing '$($course.title)'"
+                $seededReviews++
+
+                # The publisher reply is optional and accepted once. A rerun answers 409 because the
+                # reply already exists, which is the expected idempotent outcome, not an error.
+                if ($review.publisherReply) {
+                    $reviewId = ($reviewResponse.Body | ConvertFrom-Json).id
+                    if (-not $reviewId) {
+                        throw "Review on '$($course.title)' returned no id, cannot add its reply."
+                    }
+                    $adminToken = Connect-User -Email ("admin@{0}.local" -f $publisher.slug)
+                    $replyResponse = Invoke-Gateway -Method 'POST' `
+                        -Path "/api/studio/reviews/$reviewId/reply" -Token $adminToken `
+                        -JsonBody @{ reply = $review.publisherReply }
+                    Assert-Status $replyResponse @(200, 204, 409) "Replying to '$($course.title)'"
+                    $seededReplies++
+                }
+            }
         }
     }
 } catch {
@@ -280,4 +392,6 @@ try {
 Write-Host ''
 Write-Host ($rows | Format-Table -AutoSize | Out-String -Width 200)
 Write-Host ("Created {0} course(s), skipped {1} existing course(s)." -f $createdCount, $skippedCount)
-Write-Host 'Demo courses are available through http://localhost:8080/api/courses.'
+Write-Host ("Seeded {0} review(s) and {1} publisher repl(y/ies) from the demo data." -f $seededReviews, $seededReplies)
+Write-Host 'Catalogue: http://localhost:8080/api/public/courses'
+Write-Host 'Studio   : http://localhost:8080/api/studio/courses'

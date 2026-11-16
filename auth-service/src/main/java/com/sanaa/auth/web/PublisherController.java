@@ -51,6 +51,16 @@ public class PublisherController {
         return publisherService.slugAvailable(slug);
     }
 
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public PublisherProfileResponse ownProfile(@AuthenticationPrincipal Jwt jwt) {
+        String tenantId = jwt.getClaimAsString(JwtClaims.TENANT_ID);
+        if (tenantId == null) {
+            throw new ForbiddenException("A publisher admin session is required.");
+        }
+        return publisherService.getOwnProfile(tenantId);
+    }
+
     @PutMapping("/me")
     @PreAuthorize("hasRole('TENANT_ADMIN')")
     public PublisherProfileResponse updateOwn(@AuthenticationPrincipal Jwt jwt,

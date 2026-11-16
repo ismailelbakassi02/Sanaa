@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 
 import type { Role } from './api/types';
@@ -7,53 +8,97 @@ import { ForcedPasswordGate } from './components/ForcedPasswordGate';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PublicLayout } from './components/PublicLayout';
 import { RequireRole } from './components/RequireRole';
+import { RouteFallback } from './components/RouteFallback';
 import { fr } from './i18n/fr';
-import { AdminPage } from './pages/AdminPage';
-import { AdminPaymentsPage } from './pages/AdminPaymentsPage';
-import { BecomeCreatorPage } from './pages/BecomeCreatorPage';
-import { CataloguePage } from './pages/CataloguePage';
-import { CourseCreatePage } from './pages/CourseCreatePage';
-import { CourseDetailPage } from './pages/CourseDetailPage';
-import { CourseEditPage } from './pages/CourseEditPage';
-import { HomePage } from './pages/HomePage';
-import { LoginPage } from './pages/LoginPage';
-import { ManageCoursesPage } from './pages/ManageCoursesPage';
-import { MePage } from './pages/MePage';
-import { MyCoursesPage } from './pages/MyCoursesPage';
-import { MyPaymentsPage } from './pages/MyPaymentsPage';
-import { NotFoundPage } from './pages/NotFoundPage';
-import { PasswordPage } from './pages/PasswordPage';
-import { PrivacyPage } from './pages/PrivacyPage';
-import { PublicInstructorPage } from './pages/PublicInstructorPage';
-import { PublicPublisherPage } from './pages/PublicPublisherPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { StudioProfilePage } from './pages/StudioProfilePage';
-import { StudioTeamPage } from './pages/StudioTeamPage';
 import { useAuthStore } from './store/auth';
 
 /**
- * Course pages are kept mounted but hidden from every menu until the
- * marketplace tasks. They keep their v1 role rules so they cannot be used as a
- * back door while they wait.
+ * Every page is a separate chunk: a visitor reading the home page never
+ * downloads the studio, payment or admin code. The layouts and guards stay
+ * eager because they wrap the first paint.
  */
-const CONTENT_ROLES = ['STUDENT', 'INSTRUCTOR', 'TENANT_ADMIN'] as const satisfies readonly Role[];
+const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })));
+const CoursesPage = lazy(() =>
+  import('./pages/CoursesPage').then((m) => ({ default: m.CoursesPage })),
+);
+const CoursePage = lazy(() =>
+  import('./pages/CoursePage').then((m) => ({ default: m.CoursePage })),
+);
+const CategoryPage = lazy(() =>
+  import('./pages/CategoryPage').then((m) => ({ default: m.CategoryPage })),
+);
+const PublicPublisherPage = lazy(() =>
+  import('./pages/PublicPublisherPage').then((m) => ({ default: m.PublicPublisherPage })),
+);
+const PublicInstructorPage = lazy(() =>
+  import('./pages/PublicInstructorPage').then((m) => ({ default: m.PublicInstructorPage })),
+);
+const BecomeCreatorPage = lazy(() =>
+  import('./pages/BecomeCreatorPage').then((m) => ({ default: m.BecomeCreatorPage })),
+);
+const PrivacyPage = lazy(() =>
+  import('./pages/PrivacyPage').then((m) => ({ default: m.PrivacyPage })),
+);
+const LoginPage = lazy(() =>
+  import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })),
+);
+const RegisterPage = lazy(() =>
+  import('./pages/RegisterPage').then((m) => ({ default: m.RegisterPage })),
+);
+const NotFoundPage = lazy(() =>
+  import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
+);
+const MePage = lazy(() => import('./pages/MePage').then((m) => ({ default: m.MePage })));
+const PasswordPage = lazy(() =>
+  import('./pages/PasswordPage').then((m) => ({ default: m.PasswordPage })),
+);
+const LearnPage = lazy(() =>
+  import('./pages/LearnPage').then((m) => ({ default: m.LearnPage })),
+);
+const LearnCoursesPage = lazy(() =>
+  import('./pages/LearnCoursesPage').then((m) => ({ default: m.LearnCoursesPage })),
+);
+const StudioProfilePage = lazy(() =>
+  import('./pages/StudioProfilePage').then((m) => ({ default: m.StudioProfilePage })),
+);
+const StudioTeamPage = lazy(() =>
+  import('./pages/StudioTeamPage').then((m) => ({ default: m.StudioTeamPage })),
+);
+const AdminPage = lazy(() =>
+  import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })),
+);
+const AdminPaymentsPage = lazy(() =>
+  import('./pages/AdminPaymentsPage').then((m) => ({ default: m.AdminPaymentsPage })),
+);
+const MyPaymentsPage = lazy(() =>
+  import('./pages/MyPaymentsPage').then((m) => ({ default: m.MyPaymentsPage })),
+);
+
+/**
+ * Payment pages stay reachable by URL but out of every menu until the payment
+ * task. The platform administrator cannot use the learner API at all.
+ */
+const LEARNER_ROLES = ['STUDENT', 'INSTRUCTOR', 'TENANT_ADMIN'] as const satisfies readonly Role[];
 const STUDENT_ROLES = ['STUDENT'] as const satisfies readonly Role[];
 const STUDIO_ROLES = ['TENANT_ADMIN', 'INSTRUCTOR'] as const satisfies readonly Role[];
 const ADMIN_ROLES = ['TENANT_ADMIN'] as const satisfies readonly Role[];
-const AUTHORING_ROLES = ['INSTRUCTOR', 'TENANT_ADMIN'] as const satisfies readonly Role[];
 const PLATFORM_ADMIN_ROLES = ['SUPER_ADMIN'] as const satisfies readonly Role[];
 
 export function App() {
   return (
-    <Routes>
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
       <Route element={<PublicLayout />}>
         <Route index element={<HomePage />} />
-        <Route path="become-creator" element={<BecomeCreatorPage />} />
+        <Route path="courses" element={<CoursesPage />} />
+        <Route path="courses/:courseId" element={<CoursePage />} />
+        <Route path="categories/:slug" element={<CategoryPage />} />
         <Route path="publishers/:slug" element={<PublicPublisherPage />} />
         <Route path="instructors/:id" element={<PublicInstructorPage />} />
+        <Route path="become-creator" element={<BecomeCreatorPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
@@ -69,6 +114,22 @@ export function App() {
       >
         <Route path="me" element={<MePage />} />
         <Route path="password" element={<PasswordPage />} />
+        <Route
+          path="learn"
+          element={
+            <RequireRole roles={LEARNER_ROLES}>
+              <LearnPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="learn/courses"
+          element={
+            <RequireRole roles={LEARNER_ROLES}>
+              <LearnCoursesPage />
+            </RequireRole>
+          }
+        />
         <Route
           path="studio/profile"
           element={
@@ -93,32 +154,6 @@ export function App() {
             </RequireRole>
           }
         />
-
-        {/* Hidden until the marketplace tasks: reachable by URL, absent from menus. */}
-        <Route
-          path="courses"
-          element={
-            <RequireRole roles={CONTENT_ROLES}>
-              <CataloguePage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="courses/:courseId"
-          element={
-            <RequireRole roles={CONTENT_ROLES}>
-              <CourseDetailPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="my-courses"
-          element={
-            <RequireRole roles={STUDENT_ROLES}>
-              <MyCoursesPage />
-            </RequireRole>
-          }
-        />
         <Route
           path="my-payments"
           element={
@@ -135,32 +170,9 @@ export function App() {
             </RequireRole>
           }
         />
-        <Route
-          path="manage"
-          element={
-            <RequireRole roles={AUTHORING_ROLES}>
-              <ManageCoursesPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="manage/new"
-          element={
-            <RequireRole roles={AUTHORING_ROLES}>
-              <CourseCreatePage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="manage/:courseId/edit"
-          element={
-            <RequireRole roles={AUTHORING_ROLES}>
-              <CourseEditPage />
-            </RequireRole>
-          }
-        />
       </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
 

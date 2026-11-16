@@ -234,6 +234,9 @@ Wait-Health 'gateway' 'http://localhost:9082/actuator/health' $gatewayProcess.Id
 
 Write-Host 'Starting course-service...'
 $env:MANAGEMENT_SERVER_PORT = '9083'
+# The demo has no video pipeline yet, so the publish rule's video requirement is relaxed locally.
+# Tests still prove the strict rule with the property set to true.
+$env:COURSE_REQUIRE_READY_VIDEO = 'false'
 $courseOut = Join-Path $LogDir 'course-service.log'
 $courseErr = Join-Path $LogDir 'course-service.err.log'
 $courseProcess = Start-Process -FilePath $java -ArgumentList @('-jar', $courseJar) `
@@ -311,6 +314,6 @@ Write-Host '  learners            : learner1@example.local to learner4@example.l
 Write-Host '  platform            : PLATFORM_ADMIN_EMAIL (super admin)'
 Write-Host ''
 Write-Host 'Demo courses: run .\scripts\seed-demo.ps1, or start with -Seed.'
-Write-Host '  It still uses the v1 tenantSlug login and may fail until the course-service task updates it.'
+Write-Host '  The seed logs in with email only and builds the marketplace catalogue through the studio API.'
 Write-Host ''
 Write-Host "Logs and process ids: $LogDir"

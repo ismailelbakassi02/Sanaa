@@ -102,7 +102,7 @@ public class DemoSeed implements ApplicationRunner {
             Tenant tenant = demoSeedService.ensureTenant(demo.slug(), demo.name(), demo.type(),
                     demo.color(), demo.headline(), demo.description(), demo.contactEmail());
             TenantContext.runAs(tenant.getId(), () -> {
-                demoSeedService.ensurePublisherAccounts(demo.accounts(), password);
+                demoSeedService.ensurePublisherAccounts(tenant.getId(), demo.accounts(), password);
                 demoSeedService.removeAccounts(demo.obsoleteEmails());
             });
         }

@@ -139,13 +139,15 @@ Conventions: utf8mb4, `created_at` and `updated_at`, money `DECIMAL(10,2)`, BIGI
 
 ### course_db
 - `categories` (global reference data, seeded): id, slug, name_fr.
-- `courses`: id, tenant_id, instructor_id, instructor_name (snapshot), publisher_slug, publisher_name, publisher_type, publisher_status (snapshots, refreshed by events), category_id, title, summary (200), description (4000), level (BEGINNER, INTERMEDIATE, ADVANCED), language, skills JSON (max 12 items of 200 chars), requirements JSON (same limits), price, currency (MAD), discount_price NULL, discount_ends_at NULL, status (DRAFT, PUBLISHED, ARCHIVED, SUSPENDED), suspended_reason, rating_avg, rating_count, version, timestamps. FULLTEXT index on title and summary.
+- `courses`: id, tenant_id, instructor_id, category_id, title, summary (200), description (4000), level (BEGINNER, INTERMEDIATE, ADVANCED), language, skills JSON (max 12 items of 200 chars), requirements JSON (same limits), price, currency (MAD), discount_price NULL, discount_ends_at NULL, status (DRAFT, PUBLISHED, ARCHIVED, SUSPENDED), suspended_reason, rating_avg, rating_count, version, timestamps. FULLTEXT index on title and summary. **No publisher or instructor columns**: the cross-tenant snapshots live in their own tables below, so one publisher event updates every course of that publisher at once.
+- `publisher_snapshots` (global read model, not `@TenantId`): tenant_id (PK), slug, name, type (INDIVIDUAL, ORGANIZATION), status (ACTIVE, SUSPENDED), source_occurred_at. Written by the `sanaa.publishers.v1` consumer and by the studio placeholder rule; read by the public catalogue. `source_occurred_at` makes an older redelivered event unable to overwrite a newer snapshot.
+- `instructor_snapshots` (global read model, not `@TenantId`): user_id (PK), tenant_id, name, source_occurred_at. Same writer and same ordering rule.
 - `course_tags`: course_id, tag (lower case, at most 10 per course).
-- `modules`, `lessons` (media_status NONE, PROCESSING, READY, FAILED; free_preview; duration_seconds).
+- `modules`, `lessons` (media_status NONE, PROCESSING, READY, FAILED; free_preview; duration_seconds; description 1000).
 - `media_jobs`: id, tenant_id, lesson_id, status (PENDING, RUNNING, DONE, FAILED), attempts, error (short), source_path, created_at, finished_at.
 - `enrollments`: id, tenant_id, user_id, user_name, user_email (snapshots), course_id, source (PAYMENT, FREE, ADMIN_GRANT), source_payment_id NULL, status (ACTIVE, REVOKED), enrolled_at. `UNIQUE(tenant_id, user_id, course_id)`.
 - `reviews`: id, tenant_id, course_id, user_id, user_name, rating 1 to 5, comment (2000), status (VISIBLE, HIDDEN), hidden_reason, publisher_reply, replied_at, timestamps. `UNIQUE(course_id, user_id)`.
-- `course_views_daily`: course_id, day, views.
+- `course_views_daily`: course_id, day, views. `INSERT ... ON DUPLICATE KEY UPDATE` on every public course page; a failure is logged and never blocks the response.
 - `processed_events`, `admin_audit_log`.
 
 ### payment_db
@@ -256,7 +258,7 @@ All under `/api` through the gateway. `P` public, `L` any logged-in user, `S` ST
 | auth | `GET /public/publishers/{slug}`, `/public/instructors/{userId}`, `/public/images/{id}` | P |
 | auth | `/admin/users`, `/admin/publishers`, `/admin/audit/auth` | A |
 | course | `GET /public/categories`, `/public/courses`, `/public/courses/trending`, `/public/courses/{id}`, `/public/courses/{id}/reviews` | P |
-| course | `GET /learner/home`, `/learner/enrollments`, `POST /courses/{id}/enroll` (free), `POST/PUT /courses/{id}/reviews`, `POST /stream/lessons/{id}/token` | L |
+| course | `GET /learner/home`, `/learner/enrollments`, `/learner/courses/{id}/purchase-info`, `POST /courses/{id}/enroll` (free), `POST/PUT /courses/{id}/reviews`, `POST /stream/lessons/{id}/token` | L |
 | course | `/studio/courses...` (CRUD, modules, lessons, tags, discount, publish, archive, delete), `PUT /studio/lessons/{id}/video`, `GET /studio/lessons/{id}/media`, `GET /studio/courses/{id}/students`, `POST /studio/reviews/{id}/reply`, `GET /studio/stats` | I (own), T |
 | course | `GET /stream/media/{lessonId}/index.m3u8`, `/key`, `/seg_NNN.ts` | playback token |
 | course | `/admin/courses...`, `/admin/reviews/{id}/hide`, `/admin/stats`, `/admin/audit/course` | A |

@@ -4,7 +4,9 @@ import type { CSSProperties } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { publicImageUrl } from '../api/profile';
+import { CreatorCourses } from '../components/CreatorCourses';
 import { usePublicPublisher } from '../hooks/publishers';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { fr } from '../i18n/fr';
 import { BRAND_COLOR } from '../lib/brand';
 import { derivePrimaryScale, hexToRgb, isHexColor, toCssTriplet } from '../lib/color';
@@ -36,6 +38,7 @@ export function PublicPublisherPage() {
   const { slug } = useParams<{ slug: string }>();
   const query = usePublicPublisher(slug);
   const mode = useThemeStore((state) => state.mode);
+  useDocumentTitle(query.data?.name);
 
   if (query.isPending) {
     return (
@@ -98,6 +101,13 @@ export function PublicPublisherPage() {
           <p className="sanaa-text sanaa-prose-text">{publisher.description}</p>
         </Card>
       ) : null}
+
+      <CreatorCourses
+        title={fr.publicPublisher.coursesTitle}
+        lead={fr.publicPublisher.coursesLead}
+        empty={fr.publicPublisher.emptyCourses}
+        matches={(course) => course.publisherSlug === publisher.slug}
+      />
 
       {links.length > 0 ? (
         <section className="sanaa-public__links" aria-label={fr.publicPublisher.linksTitle}>

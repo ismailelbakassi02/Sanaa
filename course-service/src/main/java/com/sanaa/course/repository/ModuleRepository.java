@@ -14,6 +14,8 @@ public interface ModuleRepository extends JpaRepository<Module, Long> {
 
     int countByCourseId(Long courseId);
 
+    void deleteByCourseId(Long courseId);
+
     /**
      * Server-assigned positions: the next module always follows the current maximum. The unique
      * index {@code (course_id, position)} turns a concurrent collision into a database conflict,

@@ -18,9 +18,12 @@ import org.hibernate.type.SqlTypes;
 /**
  * A student's access to a course.
  *
- * <p>Enrollments are never created by this API. They will be inserted by the payment-approved
- * consumer, which sets the tenant from the validated event envelope. The unique index on
- * {@code (tenant_id, user_id, course_id)} is the final duplicate guard.
+ * <p>Enrollments are created by the payment consumer, by free enrollment in the public API and,
+ * later, by an admin grant. The row lives in the tenant of the course, never in the learner's
+ * (a learner has no tenant). {@code userName} and {@code userEmail} are snapshots so the studio
+ * student list and the public review page do not need to call auth-service.
+ *
+ * <p>The unique index on {@code (tenant_id, user_id, course_id)} is the final duplicate guard.
  */
 @Entity
 @Table(name = "enrollments")
@@ -38,11 +41,21 @@ public class Enrollment {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "user_name", length = 120)
+    private String userName;
+
+    @Column(name = "user_email", length = 255)
+    private String userEmail;
+
     @Column(name = "course_id", nullable = false)
     private Long courseId;
 
     @Column(name = "source_payment_id")
     private Long sourcePaymentId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", nullable = false, length = 16)
+    private EnrollmentSource source;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
@@ -54,11 +67,15 @@ public class Enrollment {
     protected Enrollment() {
     }
 
-    public Enrollment(Long userId, Long courseId, Long sourcePaymentId, EnrollmentStatus status,
+    public Enrollment(Long userId, String userName, String userEmail, Long courseId,
+                      Long sourcePaymentId, EnrollmentSource source, EnrollmentStatus status,
                       Instant enrolledAt) {
         this.userId = userId;
+        this.userName = userName;
+        this.userEmail = userEmail;
         this.courseId = courseId;
         this.sourcePaymentId = sourcePaymentId;
+        this.source = source;
         this.status = status;
         this.enrolledAt = enrolledAt;
     }
@@ -75,12 +92,24 @@ public class Enrollment {
         return userId;
     }
 
+    public String getUserName() {
+        return userName;
+    }
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
     public Long getCourseId() {
         return courseId;
     }
 
     public Long getSourcePaymentId() {
         return sourcePaymentId;
+    }
+
+    public EnrollmentSource getSource() {
+        return source;
     }
 
     public EnrollmentStatus getStatus() {

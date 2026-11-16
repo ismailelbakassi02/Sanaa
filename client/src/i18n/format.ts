@@ -32,7 +32,7 @@ function moneyFormatter(currency: string): Intl.NumberFormat {
 
 export function formatPrice(amount: number, currency = 'MAD'): string {
   if (amount === 0) {
-    return fr.catalogue.free;
+    return fr.common.free;
   }
   return moneyFormatter(currency).format(amount);
 }

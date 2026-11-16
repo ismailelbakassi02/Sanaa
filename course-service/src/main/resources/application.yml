@@ -83,3 +83,9 @@ sanaa:
     jwks-uri: ${AUTH_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
     issuer: ${JWT_ISSUER:sanaa-auth}
     audience: ${JWT_AUDIENCE:sanaa-api}
+  course:
+    publish:
+      # The complete rule is category, summary, at least one skill and a lesson with a READY
+      # video. The video pipeline is a separate iteration: local demos set this to false so a
+      # seeded course can be published, while tests prove both values of the rule.
+      require-ready-video: ${COURSE_REQUIRE_READY_VIDEO:true}

@@ -25,17 +25,21 @@ beforeEach(() => {
 });
 
 describe('navItemsForRole', () => {
-  it('gives a learner only the public, personal and creator-onboarding entries', () => {
+  it('gives a learner the public catalogue, the learner area and the personal entries', () => {
     expect(navItemsForRole('STUDENT').map((item) => item.path)).toEqual([
       '/',
+      '/courses',
+      '/learn',
       '/me',
       '/become-creator',
     ]);
   });
 
-  it('gives an instructor the read-only studio profile but no team', () => {
+  it('gives an instructor the learner area and the read-only studio profile but no team', () => {
     expect(navItemsForRole('INSTRUCTOR', 'ORGANIZATION').map((item) => item.path)).toEqual([
       '/',
+      '/courses',
+      '/learn',
       '/me',
       '/studio/profile',
     ]);
@@ -44,11 +48,15 @@ describe('navItemsForRole', () => {
   it('adds the team entry only to an organization administrator', () => {
     expect(navItemsForRole('TENANT_ADMIN', 'INDIVIDUAL').map((item) => item.path)).toEqual([
       '/',
+      '/courses',
+      '/learn',
       '/me',
       '/studio/profile',
     ]);
     expect(navItemsForRole('TENANT_ADMIN', 'ORGANIZATION').map((item) => item.path)).toEqual([
       '/',
+      '/courses',
+      '/learn',
       '/me',
       '/studio/profile',
       '/studio/team',
@@ -59,17 +67,18 @@ describe('navItemsForRole', () => {
     );
   });
 
-  it('gives the platform administrator only the platform entries', () => {
+  it('gives the platform administrator no learner area', () => {
     expect(navItemsForRole('SUPER_ADMIN').map((item) => item.path)).toEqual([
       '/',
+      '/courses',
       '/me',
       '/admin',
     ]);
   });
 
-  it('never exposes a course, catalogue or payment route in any menu', () => {
+  it('never exposes a retired or payment route in any menu', () => {
     const roles: Role[] = ['STUDENT', 'INSTRUCTOR', 'TENANT_ADMIN', 'SUPER_ADMIN'];
-    const hidden = ['/courses', '/manage', '/my-courses', '/my-payments', '/payments'];
+    const hidden = ['/manage', '/my-courses', '/my-payments', '/payments'];
     for (const role of roles) {
       for (const path of navItemsForRole(role, 'ORGANIZATION').map((item) => item.path)) {
         expect(hidden).not.toContain(path);
@@ -77,8 +86,8 @@ describe('navItemsForRole', () => {
     }
   });
 
-  it('returns an empty menu for an anonymous visitor', () => {
-    expect(navItemsForUser(null)).toEqual([]);
+  it('gives an anonymous visitor the public catalogue entries', () => {
+    expect(navItemsForUser(null).map((item) => item.path)).toEqual(['/', '/courses']);
   });
 });
 
@@ -88,6 +97,8 @@ describe('MainMenu rendering', () => {
     renderWithProviders(<MainMenu />, '/me');
 
     expect(screen.getByText(fr.nav.home)).toBeInTheDocument();
+    expect(screen.getByText(fr.nav.catalogue)).toBeInTheDocument();
+    expect(screen.getByText(fr.nav.learn)).toBeInTheDocument();
     expect(screen.getByText(fr.nav.me)).toBeInTheDocument();
     expect(screen.getByText(fr.nav.becomeCreator)).toBeInTheDocument();
     expect(screen.queryByText(fr.nav.studioProfile)).not.toBeInTheDocument();
@@ -120,6 +131,15 @@ describe('MainMenu rendering', () => {
     expect(selected).toHaveTextContent(fr.nav.studioTeam);
   });
 
+  it('selects the longest matching entry for a nested learner route', () => {
+    setAuthUser(studentUser);
+    const { container } = renderWithProviders(<MainMenu />, '/learn/courses');
+
+    const selected = container.querySelector('.arco-menu-selected');
+    expect(selected).not.toBeNull();
+    expect(selected).toHaveTextContent(fr.nav.learn);
+  });
+
   it('hides the team entry for an individual administrator', () => {
     setAuthUser(individualAdminUser);
     renderWithProviders(<MainMenu />, '/studio/profile');
@@ -132,11 +152,16 @@ describe('MainMenu rendering', () => {
     renderWithProviders(<MainMenu />, '/admin');
 
     expect(screen.getByText(fr.nav.admin)).toBeInTheDocument();
+    expect(screen.getByText(fr.nav.catalogue)).toBeInTheDocument();
+    expect(screen.queryByText(fr.nav.learn)).not.toBeInTheDocument();
     expect(screen.queryByText(fr.nav.studioProfile)).not.toBeInTheDocument();
   });
 
-  it('renders nothing for an anonymous visitor', () => {
-    const { container } = renderWithProviders(<MainMenu />);
-    expect(container).toBeEmptyDOMElement();
+  it('renders the public entries for an anonymous visitor', () => {
+    renderWithProviders(<MainMenu />);
+
+    expect(screen.getByText(fr.nav.home)).toBeInTheDocument();
+    expect(screen.getByText(fr.nav.catalogue)).toBeInTheDocument();
+    expect(screen.queryByText(fr.nav.learn)).not.toBeInTheDocument();
   });
 });

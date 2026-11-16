@@ -9,6 +9,7 @@ import type { MeResponse } from '../api/types';
 import { AuthShell } from '../components/AuthShell';
 import { fr } from '../i18n/fr';
 import { applyServerFieldErrors } from '../lib/formErrors';
+import { sanitizeRedirect } from '../lib/url';
 import { useAuthStore } from '../store/auth';
 
 interface LoginFormValues {
@@ -44,7 +45,9 @@ export function LoginPage() {
       const me = await fetchMe();
       useAuthStore.getState().setSession(accessToken, me);
       Message.success(fr.auth.login.success);
-      navigate(me.mustChangePassword ? '/password' : (from ?? landingPath(me)), {
+      // The `from` state is attacker-controlled when a link points here, so only
+      // an internal absolute path is accepted after a successful login.
+      navigate(me.mustChangePassword ? '/password' : sanitizeRedirect(from, landingPath(me)), {
         replace: true,
       });
     } catch (error) {
@@ -58,7 +61,12 @@ export function LoginPage() {
   };
 
   if (status === 'authenticated' && user) {
-    return <Navigate to={landingPath(user)} replace />;
+    return (
+      <Navigate
+        to={user.mustChangePassword ? '/password' : sanitizeRedirect(from, landingPath(user))}
+        replace
+      />
+    );
   }
 
   return (

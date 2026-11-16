@@ -44,3 +44,43 @@ export function safeHref(value: string | null | undefined): string | null {
   }
   return isSafeHttpsUrl(value) ? value.trim() : null;
 }
+
+/**
+ * Only an internal absolute path may be used as a post-login target.
+ *
+ * WHY not just `startsWith('/')`: `//evil.example` and `/\evil.example` are
+ * protocol-relative or backslash-normalized addresses that the browser turns
+ * into another origin. A control character can hide the real target too, so
+ * the value is parsed against a fixed base and its origin must not change.
+ */
+export function sanitizeRedirect(
+  value: string | null | undefined,
+  fallback = '/',
+): string {
+  if (!value) {
+    return fallback;
+  }
+  const candidate = value.trim();
+  if (!candidate.startsWith('/')) {
+    return fallback;
+  }
+  if (candidate.startsWith('//') || candidate.startsWith('/\\')) {
+    return fallback;
+  }
+  for (const character of Array.from(candidate)) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code <= 0x1f || code === 0x7f) {
+      return fallback;
+    }
+  }
+  try {
+    const base = 'https://sanaa.invalid';
+    const parsed = new URL(candidate, base);
+    if (parsed.origin !== base) {
+      return fallback;
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return fallback;
+  }
+}

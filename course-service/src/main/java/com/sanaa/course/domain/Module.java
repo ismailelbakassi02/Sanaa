@@ -58,6 +58,14 @@ public class Module {
         this.position = position;
     }
 
+    public void rename(String title) {
+        this.title = title;
+    }
+
+    public void setPosition(int position) {
+        this.position = position;
+    }
+
     public Long getId() {
         return id;
     }

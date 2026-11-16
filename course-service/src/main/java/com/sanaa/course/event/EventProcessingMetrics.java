@@ -23,7 +23,7 @@ public class EventProcessingMetrics {
     public EventProcessingMetrics(MeterRegistry registry) {
         for (EventProcessingOutcome outcome : EventProcessingOutcome.values()) {
             counters.put(outcome, Counter.builder("sanaa.events.processed")
-                    .description("Payment events handled by the course-service consumer")
+                    .description("Events handled by the course-service consumers")
                     .tag("result", outcome.tag())
                     .register(registry));
         }

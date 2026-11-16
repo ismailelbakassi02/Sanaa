@@ -4,6 +4,10 @@ export type MembershipRole = 'TENANT_ADMIN' | 'INSTRUCTOR';
 export type UserStatus = 'ACTIVE' | 'DISABLED';
 export type MembershipStatus = 'ACTIVE' | 'DISABLED';
 export type PublisherStatus = 'ACTIVE' | 'SUSPENDED';
+export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type CourseLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+export type EnrollmentSource = 'FREE' | 'PAYMENT' | 'ADMIN_GRANT';
+export type ReviewStatus = 'VISIBLE' | 'HIDDEN';
 
 export interface LoginPayload {
   email: string;

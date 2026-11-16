@@ -1,5 +1,6 @@
 package com.sanaa.course;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -67,6 +68,7 @@ import com.sanaa.common.event.PaymentEventPayload;
 import com.sanaa.common.security.Role;
 import com.sanaa.common.tenant.TenantContext;
 import com.sanaa.course.domain.Course;
+import com.sanaa.course.domain.CourseLevel;
 import com.sanaa.course.domain.CourseStatus;
 import com.sanaa.course.domain.Enrollment;
 import com.sanaa.course.domain.EnrollmentStatus;
@@ -87,11 +89,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * course-service consumer tests against a real MySQL and a real Kafka broker.
+ * course-service payment consumer against a real MySQL and a real Kafka broker.
  *
  * <p>Events are produced with the application's own String template, exactly as payment-service
  * publishes them. The dead letter topic is read with a throwaway consumer group. The retry backoff
  * is shortened so the transient-failure case stays fast.
+ *
+ * <p>Since v2 an enrollment has no learner tenant: the row lives in the course's publisher, while
+ * {@code /api/learner/enrollments} is scoped by the JWT subject and therefore spans publishers.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
@@ -162,12 +167,13 @@ class PaymentEventConsumptionTest {
     // ---------------------------------------------------------------- enrollment creation
 
     @Test
-    void approvedPaymentCreatesOneActiveEnrollmentVisibleOnlyInItsTenant() throws Exception {
+    void approvedPaymentCreatesAnEnrollmentThatOnlyTheBuyerSees() throws Exception {
         String tenantA = newTenantId();
         String tenantB = newTenantId();
         long userId = 501;
         long paymentId = 77_001;
-        Course course = saveCourse(tenantA, 100, "Cours payé par virement", CourseStatus.PUBLISHED);
+        String title = "Cours payé par virement";
+        Course course = saveCourse(tenantA, 100, title, CourseStatus.PUBLISHED);
         String eventId = UUID.randomUUID().toString();
         double processedBefore = counter("processed");
 
@@ -177,23 +183,47 @@ class PaymentEventConsumptionTest {
         assertThat(enrollment.getStatus()).isEqualTo(EnrollmentStatus.ACTIVE);
         assertThat(enrollment.getSourcePaymentId()).isEqualTo(paymentId);
         assertThat(enrollment.getTenantId()).isEqualTo(tenantA);
+        assertThat(enrollment.getUserName()).isEqualTo("Étudiant " + userId);
+        assertThat(enrollment.getUserEmail()).isEqualTo("student" + userId + "@example.test");
         assertThat(awaitEnrollmentCount(tenantA, userId, course.getId(), 1)).isTrue();
+        // The student counter is stored on the course row by the same transaction as the row.
+        assertThat(storedStudentCount(course.getId())).isEqualTo(1);
         await(Duration.ofSeconds(10), () -> counter("processed") >= processedBefore + 1);
 
-        HttpResult mine = get("/api/enrollments/me", token(tenantA, userId, Role.STUDENT));
+        // The learner view is global by JWT subject: it does not take a tenant from the token.
+        HttpResult mine = get("/api/learner/enrollments", learnerToken(userId));
         assertThat(mine.status()).isEqualTo(200);
         JsonNode items = json(mine);
         assertThat(items.size()).isEqualTo(1);
-        assertThat(items.get(0).get("status").asString()).isEqualTo("ACTIVE");
-        assertThat(items.get(0).get("course").get("title").asString())
-                .isEqualTo("Cours payé par virement");
+        assertThat(items.get(0).get("source").asString()).isEqualTo("PAYMENT");
+        assertThat(items.get(0).get("course").get("title").asString()).isEqualTo(title);
 
-        // Same numeric user id, different tenant: the row must stay invisible.
-        HttpResult otherTenant = get("/api/enrollments/me", token(tenantB, userId, Role.STUDENT));
-        assertThat(json(otherTenant).size()).isZero();
-        assertThat(otherTenant.body()).doesNotContain("Cours payé par virement");
+        // Another learner's view is empty, and another tenant cannot read the row through JPA.
+        HttpResult stranger = get("/api/learner/enrollments", learnerToken(999));
+        assertThat(json(stranger).size()).isZero();
         assertThat(TenantContext.callAs(tenantB,
                 () -> enrollmentRepository.findById(enrollment.getId()))).isEmpty();
+    }
+
+    @Test
+    void aLearnerBuyingFromTwoPublishersSeesBothCourses() throws Exception {
+        String tenantA = newTenantId();
+        String tenantB = newTenantId();
+        long userId = 512;
+        Course courseA = saveCourse(tenantA, 100, "Cours de l'éditeur A", CourseStatus.PUBLISHED);
+        Course courseB = saveCourse(tenantB, 200, "Cours de l'éditeur B", CourseStatus.PUBLISHED);
+
+        send(77_012, approvedEvent(UUID.randomUUID().toString(), tenantA, 77_012, userId,
+                courseA.getId()));
+        send(77_013, approvedEvent(UUID.randomUUID().toString(), tenantB, 77_013, userId,
+                courseB.getId()));
+
+        await(Duration.ofSeconds(30), () -> enrolmentRows(userId).size() == 2);
+
+        HttpResult mine = get("/api/learner/enrollments", learnerToken(userId));
+        assertThat(mine.status()).isEqualTo(200);
+        assertThat(mine.body()).contains("Cours de l'éditeur A", "Cours de l'éditeur B");
+        assertThat(json(mine).size()).isEqualTo(2);
     }
 
     @Test
@@ -212,6 +242,8 @@ class PaymentEventConsumptionTest {
         await(Duration.ofSeconds(30), () -> counter("duplicate") >= duplicateBefore + 1);
         assertThat(awaitEnrollmentCount(tenantId, userId, course.getId(), 1)).isTrue();
         assertThat(processedEventCount(eventId)).isEqualTo(1);
+        // A redelivered event must not count the student twice.
+        assertThat(storedStudentCount(course.getId())).isEqualTo(1);
 
         // The ledger is the first idempotency layer: once an event id is recorded, a redelivery
         // must do nothing at all, even if the enrollment row has disappeared in the meantime.
@@ -244,6 +276,7 @@ class PaymentEventConsumptionTest {
         assertThat(awaitEnrollmentCount(tenantId, userId, course.getId(), 1)).isTrue();
         assertThat(processedEventCount(firstEvent)).isEqualTo(1);
         assertThat(processedEventCount(secondEvent)).isEqualTo(1);
+        assertThat(storedStudentCount(course.getId())).isEqualTo(1);
     }
 
     @Test
@@ -268,7 +301,7 @@ class PaymentEventConsumptionTest {
     }
 
     @Test
-    void enrollmentOfTenantAIsNeverVisibleToTenantB() throws Exception {
+    void enrollmentRowsStayInTheTenantOfTheCourse() throws Exception {
         String tenantA = newTenantId();
         String tenantB = newTenantId();
         long userId = 505;
@@ -278,14 +311,17 @@ class PaymentEventConsumptionTest {
         send(77_005, approvedEvent(eventId, tenantA, 77_005, userId, courseA.getId()));
         Enrollment enrollment = awaitEnrollment(tenantA, userId, courseA.getId());
 
-        HttpResult tenantBView = get("/api/enrollments/me", token(tenantB, userId, Role.STUDENT));
-        assertThat(tenantBView.status()).isEqualTo(200);
-        assertThat(json(tenantBView).size()).isZero();
+        // Tenant isolation is enforced on the entity layer; the learner projection deliberately
+        // spans publishers because an enrollment belongs to the course, not to the learner.
         assertThat(TenantContext.callAs(tenantB,
                 () -> enrollmentRepository.findById(enrollment.getId()))).isEmpty();
         assertThat(TenantContext.callAs(tenantB,
                 () -> enrollmentRepository.findByUserIdAndCourseId(userId, courseA.getId())))
                 .isEmpty();
+        assertThat(get("/api/learner/enrollments", learnerToken(userId)).body())
+                .contains("Cours privé A");
+        assertThat(get("/api/learner/enrollments", learnerToken(506)).body())
+                .doesNotContain("Cours privé A");
     }
 
     // ---------------------------------------------------------------- poison records
@@ -507,9 +543,23 @@ class PaymentEventConsumptionTest {
                 .count());
     }
 
+    /** Reads across all tenants on purpose: the learner projection is not tenant-scoped. */
+    private List<Long> enrolmentRows(long userId) {
+        return jdbcTemplate.queryForList(
+                "SELECT course_id FROM enrollments WHERE user_id = ? AND status = 'ACTIVE'",
+                Long.class, userId);
+    }
+
     private long processedEventCount(String eventId) {
         Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM processed_events WHERE event_id = ?", Long.class, eventId);
+        return count == null ? 0 : count;
+    }
+
+    /** The denormalised counter read from the course row, not from a read model. */
+    private long storedStudentCount(long courseId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT student_count FROM courses WHERE id = ?", Long.class, courseId);
         return count == null ? 0 : count;
     }
 
@@ -573,15 +623,15 @@ class PaymentEventConsumptionTest {
 
     private Course saveCourse(String tenantId, long instructorId, String title,
                               CourseStatus status) {
-        Course course = new Course(title, "Description", new java.math.BigDecimal("199.00"),
-                "MAD", instructorId);
+        Course course = new Course(title, "Résumé", "Description", CourseLevel.BEGINNER, "fr",
+                new BigDecimal("199.00"), "MAD", instructorId);
         if (status == CourseStatus.PUBLISHED) {
             course.publish();
         }
         return TenantContext.callAs(tenantId, () -> courseRepository.saveAndFlush(course));
     }
 
-    private String token(String tenantId, long userId, Role role) {
+    private String learnerToken(long userId) {
         try {
             SignedJWT jwt = new SignedJWT(
                     new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(KEY_ID).build(),
@@ -592,10 +642,9 @@ class PaymentEventConsumptionTest {
                             .issueTime(Date.from(Instant.now()))
                             .expirationTime(Date.from(Instant.now().plusSeconds(900)))
                             .jwtID(UUID.randomUUID().toString())
-                            .claim("role", role.name())
+                            .claim("role", Role.STUDENT.name())
                             .claim("email", "student" + userId + "@example.test")
                             .claim("name", "Étudiant " + userId)
-                            .claim("tenant_id", tenantId)
                             .build());
             jwt.sign(new RSASSASigner((RSAPrivateKey) KEY_PAIR.getPrivate()));
             return jwt.serialize();

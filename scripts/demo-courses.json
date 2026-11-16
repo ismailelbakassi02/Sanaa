@@ -1,133 +1,310 @@
 {
-  "tenants": [
+  "publishers": [
     {
       "slug": "atlas",
-      "name": "Atlas Academy",
-      "instructorEmail": "instructor@atlas.local",
       "courses": [
         {
-          "title": "Montage vidéo : les bases",
-          "description": "Apprenez à monter une vidéo de bout en bout : organisation des rushes, coupes, titres, transitions et export adapté au web.",
+          "instructorEmail": "instructor1@atlas.local",
+          "title": "JavaScript moderne : les fondamentaux",
+          "summary": "Maîtrisez les bases du JavaScript contemporain et écrivez un code clair, testable et maintenable.",
+          "description": "Cette formation part de zéro et vous amène à un niveau professionnel sur le JavaScript d'aujourd'hui. Vous pratiquez les modules ES, les fonctions fléchées, la déstructuration, les promesses et async/await à travers des exercices concrets. Chaque module se termine par un projet court que vous pouvez montrer à un employeur.",
+          "categorySlug": "programmation",
+          "level": "BEGINNER",
+          "language": "fr",
           "price": 349.00,
           "currency": "MAD",
+          "skills": ["Écrire du JavaScript moderne", "Manipuler le DOM", "Gérer l'asynchrone avec async/await", "Structurer un projet en modules"],
+          "requirements": ["Un ordinateur avec un navigateur récent", "Aucune expérience de programmation requise"],
+          "tags": ["javascript", "web", "debutant"],
           "status": "PUBLISHED",
+          "instructorName": "Yasmine El Amrani",
+          "discount": { "price": 249.00, "endsInDays": 14 },
           "modules": [
             {
-              "title": "Préparer son projet",
+              "title": "Les fondations du langage",
               "lessons": [
-                {
-                  "title": "Organiser ses rushes",
-                  "durationSeconds": 420,
-                  "freePreview": false
-                },
-                {
-                  "title": "Découvrir l'interface de montage",
-                  "durationSeconds": 540,
-                  "freePreview": true
-                }
+                { "title": "Bienvenue et installation de l'environnement", "description": "Nous installons Node.js, Visual Studio Code et créons notre premier fichier.", "durationSeconds": 420, "freePreview": true },
+                { "title": "Variables, types et opérateurs", "description": "Comprendre let, const et les types primitifs.", "durationSeconds": 900, "freePreview": false },
+                { "title": "Fonctions et portée", "description": "Fonctions classiques, fléchées et fermetures.", "durationSeconds": 1080, "freePreview": false },
+                { "title": "Exercice guidé : un convertisseur de devises", "description": "Nous assembmons tout ce que nous avons appris dans un petit outil.", "durationSeconds": 1200, "freePreview": false }
               ]
             },
             {
-              "title": "Assembler et finaliser",
+              "title": "Asynchrone et modules",
               "lessons": [
-                {
-                  "title": "Poser les premières coupes",
-                  "durationSeconds": 600,
-                  "freePreview": false
-                },
-                {
-                  "title": "Ajouter titres et transitions",
-                  "durationSeconds": 480,
-                  "freePreview": false
-                },
-                {
-                  "title": "Exporter pour le web",
-                  "durationSeconds": 360,
-                  "freePreview": false
-                }
+                { "title": "Promesses et gestion des erreurs", "description": "Le modèle asynchrone expliqué simplement.", "durationSeconds": 960, "freePreview": false },
+                { "title": "async et await en pratique", "description": "Appeler une API et afficher le résultat.", "durationSeconds": 1020, "freePreview": false },
+                { "title": "Découper son code en modules ES", "description": "Imports, exports et organisation du projet.", "durationSeconds": 780, "freePreview": false }
               ]
             }
           ]
         },
         {
-          "title": "Étalonnage et colorimétrie",
-          "description": "Maîtrisez l'étalonnage : balance des blancs, espaces colorimétriques, courbes et construction d'un look cohérent.",
+          "instructorEmail": "instructor1@atlas.local",
+          "title": "React et interfaces accessibles",
+          "summary": "Construisez des interfaces React rapides, accessibles et faciles à maintenir avec les hooks et les bonnes pratiques du web.",
+          "description": "Vous apprendrez à concevoir des composants réutilisables, à gérer l'état sans complexité inutile et à vérifier l'accessibilité au clavier et au lecteur d'écran. La formation suppose une connaissance de base de JavaScript et s'appuie sur React 19.",
+          "categorySlug": "programmation",
+          "level": "INTERMEDIATE",
+          "language": "fr",
+          "price": 449.00,
+          "currency": "MAD",
+          "skills": ["Concevoir des composants réutilisables", "Gérer l'état avec les hooks", "Créer des formulaires accessibles", "Tester ses composants"],
+          "requirements": ["Savoir écrire du JavaScript moderne", "Un éditeur de code installé"],
+          "tags": ["react", "javascript", "accessibilite"],
+          "status": "PUBLISHED",
+          "instructorName": "Yasmine El Amrani",
+          "modules": [
+            {
+              "title": "Composants et état",
+              "lessons": [
+                { "title": "Composants, props et composition", "description": "La philosophie React appliquée à un exemple réel.", "durationSeconds": 1020, "freePreview": true },
+                { "title": "useState et useReducer", "description": "Choisir le bon outil pour un état simple ou complexe.", "durationSeconds": 1140, "freePreview": false },
+                { "title": "Rendu conditionnel et listes", "description": "Éviter les pièges classiques des clés et du rendu.", "durationSeconds": 840, "freePreview": false }
+              ]
+            },
+            {
+              "title": "Accessibilité et qualité",
+              "lessons": [
+                { "title": "Formulaires accessibles", "description": "Labels, messages d'erreur et navigation au clavier.", "durationSeconds": 960, "freePreview": false },
+                { "title": "Tester les composants", "description": "Tests de comportement plutôt que d'implémentation.", "durationSeconds": 1260, "freePreview": false },
+                { "title": "Projet final : une page de catalogue", "description": "Mise en pratique complète du cours.", "durationSeconds": 1500, "freePreview": false }
+              ]
+            }
+          ]
+        },
+        {
+          "instructorEmail": "instructor2@atlas.local",
+          "title": "Python pour l'analyse de données",
+          "summary": "Apprenez à charger, nettoyer et visualiser des données réelles avec Python, pandas et Matplotlib.",
+          "description": "Une formation pratique pour les débutants qui veulent analyser des données sans devenir développeurs. Nous travaillons sur des jeux de données publics et nous construisons un rapport d'analyse complet étape par étape.",
+          "categorySlug": "data-ia",
+          "level": "BEGINNER",
+          "language": "fr",
           "price": 399.00,
           "currency": "MAD",
+          "skills": ["Manipuler des données avec pandas", "Nettoyer un jeu de données", "Créer des graphiques lisibles", "Rédiger un rapport d'analyse"],
+          "requirements": ["Notions de tableur", "Un ordinateur avec Python installé"],
+          "tags": ["python", "data", "pandas"],
           "status": "PUBLISHED",
+          "instructorName": "Omar Benjelloun",
+          "modules": [
+            {
+              "title": "Prendre en main les données",
+              "lessons": [
+                { "title": "Installer Python et Jupyter", "description": "Un environnement reproductible en quelques minutes.", "durationSeconds": 600, "freePreview": true },
+                { "title": "Charger un fichier CSV", "description": "Lire, inspecter et résumer un jeu de données.", "durationSeconds": 1080, "freePreview": false },
+                { "title": "Sélectionner et filtrer", "description": "Les opérations pandas que vous utiliserez tous les jours.", "durationSeconds": 1200, "freePreview": false }
+              ]
+            },
+            {
+              "title": "Nettoyer et raconter",
+              "lessons": [
+                { "title": "Valeurs manquantes et doublons", "description": "Des décisions documentées, pas des suppressions aveugles.", "durationSeconds": 960, "freePreview": false },
+                { "title": "Graphiques avec Matplotlib", "description": "Choisir le bon graphique pour la bonne question.", "durationSeconds": 1260, "freePreview": false },
+                { "title": "Construire un rapport final", "description": "Assembler les résultats dans un document clair.", "durationSeconds": 1380, "freePreview": false }
+              ]
+            }
+          ]
+        },
+        {
+          "instructorEmail": "instructor2@atlas.local",
+          "title": "Étalonnage et colorimétrie",
+          "summary": "Réglez un écran, une caméra ou un projecteur avec une méthode de colorimétrie reproductible, du blanc de référence à la courbe gamma.",
+          "description": "Ce cours explique pourquoi deux écrans affichent la même photo différemment et comment corriger l'écart avec un colorimètre. Nous partons du blanc de référence, nous mesurons la courbe gamma et la température de couleur, puis nous construisons un profil fiable que vous pouvez réutiliser en production.",
+          "categorySlug": "montage-video",
+          "level": "INTERMEDIATE",
+          "language": "fr",
+          "price": 199.00,
+          "currency": "MAD",
+          "skills": ["Mesurer un écran avec un colorimètre", "Lire une courbe gamma", "Créer un profil de couleur", "Vérifier la constance entre deux postes"],
+          "requirements": ["Un écran réglable", "Un colorimètre ou un accès à une sonde de calibration"],
+          "tags": ["etalonnage", "colorimetrie", "video", "calibration"],
+          "status": "PUBLISHED",
+          "instructorName": "Omar Benjelloun",
           "modules": [
             {
               "title": "Comprendre la couleur",
               "lessons": [
-                {
-                  "title": "Balance des blancs et exposition",
-                  "durationSeconds": 450,
-                  "freePreview": false
-                },
-                {
-                  "title": "Les espaces colorimétriques",
-                  "durationSeconds": 510,
-                  "freePreview": true
-                }
+                { "title": "Pourquoi étalonner un écran", "description": "Les écarts visibles entre deux écrans et leurs conséquences sur un montage.", "durationSeconds": 660, "freePreview": true },
+                { "title": "Blanc de référence et température", "description": "Choisir 6500 K et vérifier la dérive de l'écran.", "durationSeconds": 1080, "freePreview": false },
+                { "title": "Lire une courbe gamma", "description": "Interpréter la réponse de l'écran sans se perdre dans les chiffres.", "durationSeconds": 1140, "freePreview": false }
               ]
             },
             {
-              "title": "Construire un look",
+              "title": "Mesurer et corriger",
               "lessons": [
-                {
-                  "title": "Courbes et roues chromatiques",
-                  "durationSeconds": 570,
-                  "freePreview": false
-                },
-                {
-                  "title": "Réglages par zone",
-                  "durationSeconds": 540,
-                  "freePreview": false
-                }
+                { "title": "Première mesure avec une sonde", "description": "Poser la sonde, lancer la mesure et lire le rapport.", "durationSeconds": 1260, "freePreview": false },
+                { "title": "Créer et installer un profil", "description": "Transformer la mesure en profil utilisable par les logiciels de montage.", "durationSeconds": 1020, "freePreview": false },
+                { "title": "Vérifier après calibration", "description": "Contrôler la constance et documenter le résultat.", "durationSeconds": 900, "freePreview": false }
               ]
             }
           ]
         },
         {
-          "title": "Son et mixage pour la vidéo",
-          "description": "Capturez et mixez un son professionnel : choix du microphone, réduction du bruit, niveaux, compression et livraison.",
-          "price": 299.00,
+          "instructorEmail": "instructor2@atlas.local",
+          "title": "Composer une vidéo avec son smartphone",
+          "summary": "Cadrez, filmez et montez une courte vidéo claire avec le matériel que vous avez déjà dans la poche.",
+          "description": "Cette initiation gratuite vous accompagne de l'idée au premier montage. Vous apprenez à stabiliser le téléphone, à choisir un cadre lisible, à enregistrer une voix compréhensible et à assembler un récit d'une minute sans équipement spécialisé.",
+          "categorySlug": "montage-video",
+          "level": "BEGINNER",
+          "language": "fr",
+          "price": 0.00,
           "currency": "MAD",
-          "status": "DRAFT",
+          "skills": ["Préparer un tournage court", "Composer un cadre lisible", "Enregistrer une voix claire", "Assembler un montage d'une minute"],
+          "requirements": ["Un smartphone récent", "Des écouteurs avec microphone, si possible"],
+          "tags": ["video", "smartphone", "montage", "gratuit"],
+          "status": "PUBLISHED",
+          "instructorName": "Omar Benjelloun",
           "modules": [
             {
-              "title": "Capturer un son propre",
+              "title": "Filmer avec intention",
               "lessons": [
-                {
-                  "title": "Choisir son microphone",
-                  "durationSeconds": 300,
-                  "freePreview": true
-                },
-                {
-                  "title": "Éviter le bruit de fond",
-                  "durationSeconds": 330,
-                  "freePreview": false
-                }
+                { "title": "Une idée, une minute", "description": "Définir un message simple avant de sortir le téléphone.", "durationSeconds": 540, "freePreview": true },
+                { "title": "Cadre, lumière et stabilité", "description": "Trois réglages qui améliorent immédiatement une prise de vue.", "durationSeconds": 900, "freePreview": false },
+                { "title": "Une voix facile à comprendre", "description": "Choisir un lieu calme et placer le microphone correctement.", "durationSeconds": 720, "freePreview": false }
               ]
             },
             {
-              "title": "Mixer pour l'image",
+              "title": "Assembler le récit",
               "lessons": [
-                {
-                  "title": "Niveaux et compression",
-                  "durationSeconds": 480,
-                  "freePreview": false
-                },
-                {
-                  "title": "Musique et ambiance",
-                  "durationSeconds": 420,
-                  "freePreview": false
-                },
-                {
-                  "title": "Livrer un mixage conforme",
-                  "durationSeconds": 390,
-                  "freePreview": false
-                }
+                { "title": "Choisir les plans utiles", "description": "Écarter les doublons et garder ce qui sert le message.", "durationSeconds": 840, "freePreview": false },
+                { "title": "Un montage simple et rythmé", "description": "Couper, ordonner et vérifier une vidéo d'une minute.", "durationSeconds": 1080, "freePreview": false }
+              ]
+            }
+          ]
+        },
+        {
+          "instructorEmail": "instructor2@atlas.local",
+          "title": "Premiers pas en intelligence artificielle",
+          "summary": "Comprenez ce qu'est un modèle d'apprentissage automatique et entraînez votre premier modèle, sans mathématiques avancées.",
+          "description": "Une introduction gratuite et accessible à l'intelligence artificielle. Nous distinguons les usages sérieux des promesses exagérées, puis nous entraînons un modèle de classification simple sur des données réelles et nous évaluons honnêtement ses limites.",
+          "categorySlug": "data-ia",
+          "level": "INTERMEDIATE",
+          "language": "fr",
+          "price": 0.00,
+          "currency": "MAD",
+          "skills": ["Distinguer les types d'apprentissage", "Entraîner un premier modèle", "Évaluer un modèle avec des métriques", "Reconnaître les biais d'un jeu de données"],
+          "requirements": ["Savoir utiliser un tableur", "Aucune expérience en programmation requise"],
+          "tags": ["intelligence-artificielle", "debutant", "gratuit"],
+          "status": "PUBLISHED",
+          "instructorName": "Omar Benjelloun",
+          "modules": [
+            {
+              "title": "Comprendre avant de coder",
+              "lessons": [
+                { "title": "Ce que l'intelligence artificielle fait vraiment", "description": "Exemples concrets et limites actuelles.", "durationSeconds": 720, "freePreview": true },
+                { "title": "Données, variables et étiquettes", "description": "Le vocabulaire indispensable.", "durationSeconds": 840, "freePreview": false },
+                { "title": "Supervisé, non supervisé, par renforcement", "description": "Trois familles, trois usages.", "durationSeconds": 900, "freePreview": false }
+              ]
+            },
+            {
+              "title": "Entraîner et évaluer",
+              "lessons": [
+                { "title": "Un premier classifieur", "description": "Entraînement pas à pas avec scikit-learn.", "durationSeconds": 1320, "freePreview": false },
+                { "title": "Mesurer la qualité", "description": "Précision, rappel et matrice de confusion.", "durationSeconds": 1140, "freePreview": false }
+              ]
+            }
+          ],
+          "reviews": [
+            { "learnerEmail": "learner1@example.local", "rating": 5, "comment": "Enfin une introduction honnête, sans promesse magique. Les exemples sont clairs et le rythme est parfait.", "publisherReply": "Merci pour ce retour. Nous préparons un module complémentaire sur l'évaluation des modèles." },
+            { "learnerEmail": "learner3@example.local", "rating": 4, "comment": "Très bon cours pour comprendre les bases. J'aurais aimé un exercice supplémentaire sur les métriques." },
+            { "learnerEmail": "learner4@example.local", "rating": 5, "comment": "Gratuit et de grande qualité. Omar explique les limites des modèles avec beaucoup de pédagogie." }
+          ]
+        },
+        {
+          "instructorEmail": "instructor1@atlas.local",
+          "title": "Git et travail collaboratif",
+          "summary": "Versionnez votre code, travaillez en équipe et déployez sans crainte grâce à Git et aux demandes de fusion.",
+          "description": "Une formation gratuite pour passer des copies de dossiers au vrai travail d'équipe. Nous couvrons les commits, les branches, la résolution de conflits et la relecture de code, avec des exercices sur un dépôt partagé.",
+          "categorySlug": "programmation",
+          "level": "BEGINNER",
+          "language": "fr",
+          "price": 0.00,
+          "currency": "MAD",
+          "skills": ["Créer des commits lisibles", "Travailler avec des branches", "Résoudre un conflit", "Relire une demande de fusion"],
+          "requirements": ["Un ordinateur", "Un terminal, même débutant"],
+          "tags": ["git", "collaboration", "gratuit"],
+          "status": "PUBLISHED",
+          "instructorName": "Yasmine El Amrani",
+          "modules": [
+            {
+              "title": "Les premiers commits",
+              "lessons": [
+                { "title": "Pourquoi versionner son code", "description": "L'historique comme outil de travail.", "durationSeconds": 540, "freePreview": true },
+                { "title": "Initialiser un dépôt et committer", "description": "Un premier historique propre.", "durationSeconds": 900, "freePreview": false },
+                { "title": "Lire l'historique et annuler", "description": "Revenir en arrière sans panique.", "durationSeconds": 1020, "freePreview": false }
+              ]
+            },
+            {
+              "title": "Collaborer sans chaos",
+              "lessons": [
+                { "title": "Branches et fusions", "description": "Isoler une fonctionnalité puis l'intégrer.", "durationSeconds": 1140, "freePreview": false },
+                { "title": "Résoudre un conflit", "description": "Comprendre le conflit avant de le corriger.", "durationSeconds": 960, "freePreview": false },
+                { "title": "Demande de fusion et relecture", "description": "Relire le code de ses coéquipiers.", "durationSeconds": 1080, "freePreview": false }
+              ]
+            }
+          ],
+          "reviews": [
+            { "learnerEmail": "learner1@example.local", "rating": 5, "comment": "J'ai enfin compris les branches. Les exercices sur le dépôt partagé font toute la différence." },
+            { "learnerEmail": "learner2@example.local", "rating": 5, "comment": "Clair, progressif et gratuit. La partie sur les conflits m'a fait gagner des heures au travail.", "publisherReply": "Merci. La résolution de conflits est aussi la leçon que nos apprenants citent le plus souvent." },
+            { "learnerEmail": "learner3@example.local", "rating": 5, "comment": "Exactement ce qu'il faut pour travailler en équipe sans avoir peur de casser quelque chose." },
+            { "learnerEmail": "learner4@example.local", "rating": 4, "comment": "Très bon cours. J'aurais aimé un exemple avec plusieurs dépôts distants." }
+          ]
+        },
+        {
+          "instructorEmail": "instructor2@atlas.local",
+          "title": "Découvrir la ligne de commande",
+          "summary": "Un cours gratuit et sans prérequis pour se sentir à l'aise dans un terminal et automatiser les tâches répétitives.",
+          "description": "Nous partons des commandes de base pour arriver à de petits scripts utiles au quotidien. Chaque leçon manipule de vrais fichiers, et la dernière assemble un script de sauvegarde commenté.",
+          "categorySlug": "programmation",
+          "level": "BEGINNER",
+          "language": "fr",
+          "price": 0.00,
+          "currency": "MAD",
+          "skills": ["Se repérer dans les fichiers", "Enchaîner des commandes", "Écrire un petit script", "Lire une erreur du terminal"],
+          "requirements": ["Un ordinateur", "Aucune expérience requise"],
+          "tags": ["terminal", "bases", "gratuit"],
+          "status": "PUBLISHED",
+          "instructorName": "Omar Benjelloun",
+          "modules": [
+            {
+              "title": "Se repérer",
+              "lessons": [
+                { "title": "Où suis-je ? Naviguer dans les dossiers", "description": "Chemins relatifs et absolus.", "durationSeconds": 720, "freePreview": true },
+                { "title": "Lister, copier, supprimer", "description": "Les gestes de tous les jours.", "durationSeconds": 840, "freePreview": false }
+              ]
+            },
+            {
+              "title": "Automatiser un peu",
+              "lessons": [
+                { "title": "Entrées, sorties et redirections", "description": "Relier les commandes entre elles.", "durationSeconds": 900, "freePreview": false },
+                { "title": "Un premier script de sauvegarde", "description": "Un fichier commenté et réutilisable.", "durationSeconds": 1080, "freePreview": false }
+              ]
+            }
+          ]
+        },
+        {
+          "instructorEmail": "instructor1@atlas.local",
+          "title": "Tests automatisés avec Vitest",
+          "summary": "Écrivez des tests rapides et fiables pour votre code JavaScript, du test unitaire au test d'intégration.",
+          "description": "Un cours avancé en préparation. Il couvrira la pyramide des tests, les doubles de test, les tests de composants et l'intégration continue. Le contenu sera publié prochainement.",
+          "categorySlug": "programmation",
+          "level": "ADVANCED",
+          "language": "fr",
+          "price": 299.00,
+          "currency": "MAD",
+          "skills": ["Écrire des tests unitaires", "Isoler les dépendances", "Automatiser les tests en intégration continue"],
+          "requirements": ["Maîtriser JavaScript", "Avoir déjà écrit du code en équipe"],
+          "tags": ["tests", "javascript", "qualite"],
+          "status": "DRAFT",
+          "instructorName": "Yasmine El Amrani",
+          "modules": [
+            {
+              "title": "Les bases du test",
+              "lessons": [
+                { "title": "Pourquoi tester, et quoi tester", "description": "Un test utile échoue quand le comportement change.", "durationSeconds": 780, "freePreview": false },
+                { "title": "Premier test avec Vitest", "description": "Installation et premier fichier de test.", "durationSeconds": 900, "freePreview": false }
               ]
             }
           ]
@@ -136,127 +313,100 @@
     },
     {
       "slug": "acme",
-      "name": "Acme Academy",
-      "instructorEmail": "instructor@acme.local",
       "courses": [
         {
-          "title": "Gestion de projet agile",
-          "description": "Découvrez les principes de l'agilité et pilotez vos projets avec des sprints, un backlog priorisé et des indicateurs simples.",
-          "price": 450.00,
+          "instructorEmail": "admin@acme.local",
+          "title": "Identité visuelle : créer un logo mémorable",
+          "summary": "Passez de l'idée au logo final : recherche, croquis, typographie, couleur et déclinaisons.",
+          "description": "Une formation gratuite pour comprendre la démarche d'un designer. Nous partons d'un brief réel, nous explorons des pistes, puis nous finalisons un logo utilisable sur le web, en impression et en favicon.",
+          "categorySlug": "design-graphique",
+          "level": "BEGINNER",
+          "language": "fr",
+          "price": 0.00,
           "currency": "MAD",
+          "skills": ["Lire un brief de création", "Construire une planche de recherche", "Choisir une typographie", "Décliner un logo"],
+          "requirements": ["Un ordinateur", "Un logiciel de dessin vectoriel, même gratuit"],
+          "tags": ["design", "logo", "gratuit"],
           "status": "PUBLISHED",
+          "instructorName": "Sofia Acme",
           "modules": [
             {
-              "title": "Les fondations de l'agilité",
+              "title": "De la recherche au croquis",
               "lessons": [
-                {
-                  "title": "Pourquoi l'agilité",
-                  "durationSeconds": 480,
-                  "freePreview": true
-                },
-                {
-                  "title": "Rôles et rituels",
-                  "durationSeconds": 540,
-                  "freePreview": false
-                }
+                { "title": "Comprendre le brief et le public", "description": "Les questions à poser avant de dessiner.", "durationSeconds": 660, "freePreview": true },
+                { "title": "Planche de références", "description": "Chercher sans copier.", "durationSeconds": 840, "freePreview": false },
+                { "title": "Croquis rapides au papier", "description": "Produire vingt pistes en une heure.", "durationSeconds": 1080, "freePreview": false }
               ]
             },
             {
-              "title": "Piloter au quotidien",
+              "title": "Finaliser et décliner",
               "lessons": [
-                {
-                  "title": "Construire un backlog",
-                  "durationSeconds": 600,
-                  "freePreview": false
-                },
-                {
-                  "title": "Planifier un sprint",
-                  "durationSeconds": 570,
-                  "freePreview": false
-                },
-                {
-                  "title": "Mesurer avec les indicateurs",
-                  "durationSeconds": 480,
-                  "freePreview": false
-                }
+                { "title": "Typographie et couleurs", "description": "Construire une palette cohérente.", "durationSeconds": 1020, "freePreview": false },
+                { "title": "Déclinaisons et favicon", "description": "Un logo qui fonctionne partout.", "durationSeconds": 900, "freePreview": false }
+              ]
+            }
+          ],
+          "reviews": [
+            { "learnerEmail": "learner2@example.local", "rating": 5, "comment": "Une méthode claire que j'ai pu appliquer immédiatement pour mon association." },
+            { "learnerEmail": "learner4@example.local", "rating": 4, "comment": "Très bon aperçu du métier. Les fiches de synthèse sont utiles." },
+            { "learnerEmail": "learner1@example.local", "rating": 4, "comment": "Les étapes de recherche sont très concrètes. Le rythme est un peu rapide sur la typographie." }
+          ]
+        },
+        {
+          "instructorEmail": "admin@acme.local",
+          "title": "Figma : maquettes et prototypes",
+          "summary": "Concevez une maquette complète et un prototype interactif dans Figma, du wireframe au design final.",
+          "description": "Vous apprendrez à structurer un fichier Figma, à créer des composants réutilisables et à construire un prototype testable. La formation inclut une courte introduction aux variables et aux styles partagés.",
+          "categorySlug": "design-graphique",
+          "level": "INTERMEDIATE",
+          "language": "fr",
+          "price": 279.00,
+          "currency": "MAD",
+          "skills": ["Structurer un fichier Figma", "Créer des composants et des variantes", "Construire un prototype interactif", "Préparer une maquette pour le développement"],
+          "requirements": ["Un compte Figma gratuit", "Notions de design d'interface"],
+          "tags": ["figma", "design", "prototype"],
+          "status": "PUBLISHED",
+          "instructorName": "Sofia Acme",
+          "discount": { "price": 199.00, "endsInDays": 7 },
+          "modules": [
+            {
+              "title": "Maquetter proprement",
+              "lessons": [
+                { "title": "Organiser un fichier Figma", "description": "Pages, cadres et nommage.", "durationSeconds": 720, "freePreview": true },
+                { "title": "Composants et variantes", "description": "Réutiliser sans dupliquer.", "durationSeconds": 1200, "freePreview": false },
+                { "title": "Grilles et espacements", "description": "Un rythme visuel cohérent.", "durationSeconds": 900, "freePreview": false }
+              ]
+            },
+            {
+              "title": "Prototyper et transmettre",
+              "lessons": [
+                { "title": "Interactions et prototype", "description": "Simuler un parcours utilisateur.", "durationSeconds": 1080, "freePreview": false },
+                { "title": "Livrer aux développeurs", "description": "Inspection, styles et export des ressources.", "durationSeconds": 840, "freePreview": false }
               ]
             }
           ]
         },
         {
-          "title": "Excel pour la finance",
-          "description": "Structurez vos données financières et construisez des analyses claires avec les tables, les tableaux croisés dynamiques et les graphiques.",
-          "price": 380.00,
+          "instructorEmail": "admin@acme.local",
+          "title": "Photographie de produit au smartphone",
+          "summary": "Réalisez des photos de produit nettes et lumineuses avec un téléphone et une lumière simple.",
+          "description": "Un cours en préparation sur la photographie de produit accessible. Il couvrira la lumière naturelle, le fond, la mise en scène et la retouche légère sur mobile.",
+          "categorySlug": "photographie",
+          "level": "BEGINNER",
+          "language": "fr",
+          "price": 199.00,
           "currency": "MAD",
-          "status": "PUBLISHED",
-          "modules": [
-            {
-              "title": "Structurer ses données",
-              "lessons": [
-                {
-                  "title": "Tables et plages nommées",
-                  "durationSeconds": 420,
-                  "freePreview": true
-                },
-                {
-                  "title": "Contrôles de cohérence",
-                  "durationSeconds": 480,
-                  "freePreview": false
-                }
-              ]
-            },
-            {
-              "title": "Analyser et présenter",
-              "lessons": [
-                {
-                  "title": "Tableaux croisés dynamiques",
-                  "durationSeconds": 600,
-                  "freePreview": false
-                },
-                {
-                  "title": "Graphiques financiers",
-                  "durationSeconds": 450,
-                  "freePreview": false
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "title": "Communication professionnelle",
-          "description": "Préparez et prononcez une intervention convaincante : analyse de l'auditoire, structure du discours, gestion du trac et questions.",
-          "price": 320.00,
-          "currency": "MAD",
+          "skills": ["Composer une photo de produit", "Utiliser la lumière naturelle", "Retoucher sur mobile"],
+          "requirements": ["Un smartphone récent", "Un objet à photographier"],
+          "tags": ["photographie", "produit", "mobile"],
           "status": "DRAFT",
+          "instructorName": "Sofia Acme",
           "modules": [
             {
-              "title": "Préparer son message",
+              "title": "Lumière et composition",
               "lessons": [
-                {
-                  "title": "Analyser son auditoire",
-                  "durationSeconds": 360,
-                  "freePreview": false
-                },
-                {
-                  "title": "Structurer un discours",
-                  "durationSeconds": 480,
-                  "freePreview": true
-                }
-              ]
-            },
-            {
-              "title": "Prendre la parole",
-              "lessons": [
-                {
-                  "title": "Gérer son trac",
-                  "durationSeconds": 300,
-                  "freePreview": false
-                },
-                {
-                  "title": "Répondre aux questions",
-                  "durationSeconds": 420,
-                  "freePreview": false
-                }
+                { "title": "Choisir un fond et une lumière", "description": "Le matériel minimal qui suffit.", "durationSeconds": 780, "freePreview": false },
+                { "title": "Cadrer et stabiliser", "description": "Des photos nettes sans trépied coûteux.", "durationSeconds": 840, "freePreview": false }
               ]
             }
           ]

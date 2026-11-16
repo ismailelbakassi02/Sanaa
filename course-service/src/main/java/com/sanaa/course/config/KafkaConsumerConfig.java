@@ -39,9 +39,11 @@ public class KafkaConsumerConfig {
             @Value("${sanaa.events.retry.max-retries:3}") int maxRetries) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
-                // Same partition as the source record keeps per-payment ordering in the DLT too.
+                // Same partition as the source record keeps per-payment and per-publisher ordering
+                // in the DLT too. The topic is derived from the source topic, because the same
+                // error handler serves both listeners.
                 (record, exception) -> new TopicPartition(
-                        KafkaTopicConfig.PAYMENTS_DLT_TOPIC, record.partition()));
+                        KafkaTopicConfig.deadLetterTopicFor(record.topic()), record.partition()));
 
         ConsumerRecordRecoverer recovererWithMetrics = (record, exception) -> {
             publishToDeadLetterTopic(recoverer, record, exception);
@@ -63,16 +65,17 @@ public class KafkaConsumerConfig {
 
     private void publishToDeadLetterTopic(DeadLetterPublishingRecoverer recoverer,
                                           ConsumerRecord<?, ?> record, Exception exception) {
+        String deadLetterTopic = KafkaTopicConfig.deadLetterTopicFor(record.topic());
         try {
             recoverer.accept(record, exception);
             log.warn("Event {} on {}-{} was sent to {} after: {}",
                     record.key(), record.topic(), record.partition(),
-                    KafkaTopicConfig.PAYMENTS_DLT_TOPIC, exception.toString());
+                    deadLetterTopic, exception.toString());
         } catch (RuntimeException publishFailure) {
             // Rethrowing keeps the offset uncommitted: the record is redelivered rather than lost.
             log.error("Could not send event {} on {}-{} to {}: {}",
                     record.key(), record.topic(), record.partition(),
-                    KafkaTopicConfig.PAYMENTS_DLT_TOPIC, publishFailure.toString());
+                    deadLetterTopic, publishFailure.toString());
             throw publishFailure;
         }
     }

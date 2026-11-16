@@ -7,6 +7,29 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          /**
+           * Three long-lived vendor chunks plus one chunk per lazy page. Arco is
+           * by far the largest dependency, so isolating it keeps the entry and
+           * the page chunks small and cacheable across releases.
+           */
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return undefined;
+            }
+            if (id.includes('@arco-design')) {
+              return 'arco';
+            }
+            if (id.includes('react')) {
+              return 'react';
+            }
+            return 'vendor';
+          },
+        },
+      },
+    },
     server: {
       port: 5173,
       proxy: {

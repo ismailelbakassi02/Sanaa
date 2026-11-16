@@ -47,6 +47,9 @@ public class Lesson {
     @Column(name = "title", nullable = false, length = 120)
     private String title;
 
+    @Column(name = "description", length = 1000)
+    private String description;
+
     @Column(name = "position", nullable = false)
     private int position;
 
@@ -71,15 +74,31 @@ public class Lesson {
     protected Lesson() {
     }
 
-    public Lesson(Long courseId, Long moduleId, String title, int position, int durationSeconds,
-                  boolean freePreview) {
+    public Lesson(Long courseId, Long moduleId, String title, String description, int position,
+                  int durationSeconds, boolean freePreview) {
         this.courseId = courseId;
         this.moduleId = moduleId;
         this.title = title;
+        this.description = description;
         this.position = position;
         this.durationSeconds = durationSeconds;
         this.mediaStatus = MediaStatus.NONE;
         this.freePreview = freePreview;
+    }
+
+    public void update(String title, String description, int durationSeconds, boolean freePreview) {
+        this.title = title;
+        this.description = description;
+        this.durationSeconds = durationSeconds;
+        this.freePreview = freePreview;
+    }
+
+    public void setPosition(int position) {
+        this.position = position;
+    }
+
+    public void markMediaReady() {
+        this.mediaStatus = MediaStatus.READY;
     }
 
     public Long getId() {
@@ -100,6 +119,10 @@ public class Lesson {
 
     public String getTitle() {
         return title;
+    }
+
+    public String getDescription() {
+        return description;
     }
 
     public int getPosition() {

@@ -9,12 +9,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sanaa.auth.crosstenant.MembershipViewRepository;
 import com.sanaa.auth.domain.Membership;
+import com.sanaa.auth.domain.MembershipRole;
 import com.sanaa.auth.domain.PlatformRole;
 import com.sanaa.auth.domain.Profile;
 import com.sanaa.auth.domain.Tenant;
 import com.sanaa.auth.domain.TenantStatus;
 import com.sanaa.auth.domain.TenantType;
 import com.sanaa.auth.domain.User;
+import com.sanaa.auth.outbox.OutboxWriter;
 import com.sanaa.auth.repository.MembershipRepository;
 import com.sanaa.auth.repository.ProfileRepository;
 import com.sanaa.auth.repository.RefreshTokenRepository;
@@ -39,13 +41,15 @@ public class DemoSeedService {
     private final ProfileRepository profileRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final OutboxWriter outboxWriter;
 
     public DemoSeedService(TenantRepository tenantRepository, UserRepository userRepository,
                            MembershipRepository membershipRepository,
                            MembershipViewRepository membershipViewRepository,
                            ProfileRepository profileRepository,
                            RefreshTokenRepository refreshTokenRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           OutboxWriter outboxWriter) {
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.membershipRepository = membershipRepository;
@@ -53,15 +57,26 @@ public class DemoSeedService {
         this.profileRepository = profileRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.outboxWriter = outboxWriter;
     }
 
+    /**
+     * Creates the tenant and, in the same transaction, the {@code PUBLISHER_UPSERTED} event that
+     * course-service turns into a publisher snapshot.
+     *
+     * <p>WHY only on creation: a rerun finds the tenant and must not republish it. The outbox row is
+     * written before the method returns, so the tenant and its event commit together or not at all.
+     */
     @Transactional
     public Tenant ensureTenant(String slug, String name, TenantType type, String color,
                                String headline, String description, String contactEmail) {
         Optional<Tenant> existing = tenantRepository.findBySlug(slug);
         if (existing.isEmpty()) {
-            return tenantRepository.saveAndFlush(new Tenant(java.util.UUID.randomUUID().toString(),
-                    slug, name, type, TenantStatus.ACTIVE, color, contactEmail));
+            Tenant created = tenantRepository.saveAndFlush(new Tenant(
+                    java.util.UUID.randomUUID().toString(), slug, name, type, TenantStatus.ACTIVE,
+                    color, contactEmail));
+            outboxWriter.publisherUpserted(created);
+            return created;
         }
 
         Tenant tenant = existing.get();
@@ -70,8 +85,17 @@ public class DemoSeedService {
         return tenantRepository.saveAndFlush(tenant);
     }
 
+    /**
+     * Creates the publisher accounts and, for each membership it creates, the matching event in the
+     * same transaction: {@code INSTRUCTOR_UPDATED} for an instructor, nothing for a tenant admin.
+     *
+     * <p>WHY {@code tenantId} is a parameter: Hibernate needs it to write the membership, and the
+     * caller is the one that set {@code TenantContext}. The event is emitted only when the
+     * membership is created, so a rerun does not republish the instructor.
+     */
     @Transactional
-    public void ensurePublisherAccounts(List<SeedAccount> accounts, String rawPassword) {
+    public void ensurePublisherAccounts(String tenantId, List<SeedAccount> accounts,
+                                        String rawPassword) {
         for (SeedAccount account : accounts) {
             String email = EmailNormalizer.normalize(account.email());
             User user = userRepository.findByEmail(email).orElseGet(() -> userRepository.saveAndFlush(
@@ -82,6 +106,9 @@ public class DemoSeedService {
             if (membershipViewRepository.findByUserId(user.getId()).isEmpty()) {
                 membershipRepository.saveAndFlush(
                         new Membership(user.getId(), account.role()));
+                if (account.role() == MembershipRole.INSTRUCTOR) {
+                    outboxWriter.instructorUpdated(user.getId(), tenantId, user.getFullName());
+                }
             }
 
             Profile profile = profileRepository.findByUserId(user.getId())

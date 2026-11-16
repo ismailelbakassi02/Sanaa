@@ -68,9 +68,6 @@ public class SecurityConfig {
                         "/api/admin/**",
                         "/api/complaints/**",
                         "/api/courses/**",
-                        "/api/modules/**",
-                        "/api/lessons/**",
-                        "/api/enrollments/**",
                         "/api/stream/**",
                         "/api/payments/**"))
                 .authorizeExchange(exchanges -> exchanges

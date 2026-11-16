@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { isSafeHttpsUrl, safeHref, urlIssue, URL_MAX_LENGTH } from './url';
+import {
+  isSafeHttpsUrl,
+  safeHref,
+  sanitizeRedirect,
+  urlIssue,
+  URL_MAX_LENGTH,
+} from './url';
 
 describe('isSafeHttpsUrl', () => {
   it('accepts an absolute HTTPS address', () => {
@@ -43,5 +49,31 @@ describe('safeHref', () => {
     expect(safeHref('javascript:alert(1)')).toBeNull();
     expect(safeHref(null)).toBeNull();
     expect(safeHref(undefined)).toBeNull();
+  });
+});
+
+describe('sanitizeRedirect', () => {
+  it('keeps an internal path with its query and hash', () => {
+    expect(sanitizeRedirect('/courses/12?q=photo#avis')).toBe('/courses/12?q=photo#avis');
+  });
+
+  it('falls back when nothing is provided', () => {
+    expect(sanitizeRedirect(undefined, '/me')).toBe('/me');
+    expect(sanitizeRedirect(null, '/me')).toBe('/me');
+    expect(sanitizeRedirect('', '/me')).toBe('/me');
+  });
+
+  it('rejects every attempt to leave the site', () => {
+    expect(sanitizeRedirect('https://evil.example', '/me')).toBe('/me');
+    expect(sanitizeRedirect('//evil.example', '/me')).toBe('/me');
+    expect(sanitizeRedirect('/\\evil.example', '/me')).toBe('/me');
+    expect(sanitizeRedirect('\\\\evil.example', '/me')).toBe('/me');
+    expect(sanitizeRedirect('javascript:alert(1)', '/me')).toBe('/me');
+    expect(sanitizeRedirect('courses', '/me')).toBe('/me');
+  });
+
+  it('rejects a control character that hides the real target', () => {
+    expect(sanitizeRedirect('/courses\n//evil.example', '/me')).toBe('/me');
+    expect(sanitizeRedirect('/courses\u0000', '/me')).toBe('/me');
   });
 });

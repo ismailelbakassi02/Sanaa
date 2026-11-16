@@ -12,7 +12,10 @@ export function AppFooter() {
           <BrandLogo variant="mark" height={18} />
           <span className="sanaa-footer__name">{fr.app.name}</span>
         </div>
-        <nav aria-label={fr.nav.privacy}>
+        <nav aria-label={fr.nav.label} className="sanaa-footer__nav">
+          <Link className="sanaa-footer__link" to="/courses">
+            {fr.nav.catalogue}
+          </Link>
           <Link className="sanaa-footer__link" to="/privacy">
             {fr.nav.privacy}
           </Link>

@@ -759,6 +759,63 @@ class AuthFlowIntegrationTest {
                 tokenOf(login(learnerEmail, PASSWORD))), 403, "");
     }
 
+    @Test
+    void returnsThePublishersOwnProfileWithContactEmailAndLogoOnlyToItsAdmin() throws Exception {
+        String slug = unique("own-profile");
+        String email = unique("own-profile") + "@example.local";
+        String contactEmail = "bonjour@" + slug + ".test";
+        createAnonymousPublisher(slug, TenantType.ORGANIZATION, "Profil Studio", email);
+
+        String adminToken = tokenOf(login(email, PASSWORD));
+        HttpResult upload = postImage("logo", "logo.png", "image/png", pngBytes(), adminToken);
+        assertThat(upload.status()).isEqualTo(201);
+        String logoId = json(upload).get("id").asString();
+        HttpResult contact = putJson("/api/auth/publishers/me", body(
+                "name", "Profil Studio",
+                "primaryColor", "#195A56",
+                "contactEmail", contactEmail), adminToken);
+        assertThat(contact.status()).isEqualTo(200);
+
+        HttpResult own = get("/api/auth/publishers/me", adminToken);
+        assertThat(own.status()).isEqualTo(200);
+        JsonNode profile = json(own);
+        assertThat(profile.get("slug").asString()).isEqualTo(slug);
+        assertThat(profile.get("name").asString()).isEqualTo("Profil Studio");
+        assertThat(profile.get("type").asString()).isEqualTo("ORGANIZATION");
+        assertThat(profile.get("status").asString()).isEqualTo("ACTIVE");
+        assertThat(profile.get("logoImageId").asString()).isEqualTo(logoId);
+        assertThat(profile.get("contactEmail").asString()).isEqualTo(contactEmail);
+
+        // A second publisher must never be visible through the first admin's token.
+        String otherSlug = unique("own-profile-other");
+        String otherEmail = unique("own-profile-other") + "@example.local";
+        createAnonymousPublisher(otherSlug, TenantType.INDIVIDUAL, "Autre Studio", otherEmail);
+        JsonNode afterOtherExists = json(get("/api/auth/publishers/me", adminToken));
+        assertThat(afterOtherExists.get("slug").asString()).isEqualTo(slug);
+        assertThat(own.body()).doesNotContain(otherSlug, "Autre Studio");
+
+        // An instructor of the same publisher and a learner are not publisher admins.
+        String teacherEmail = unique("own-profile-teacher") + "@example.local";
+        HttpResult instructor = postJson("/api/auth/team", body(
+                "fullName", "Teacher Own Profile",
+                "email", teacherEmail,
+                "role", "INSTRUCTOR",
+                "temporaryPassword", PASSWORD), adminToken);
+        assertThat(instructor.status()).isEqualTo(201);
+        String teacherToken = tokenOf(login(teacherEmail, PASSWORD));
+        // A temporary password session is restricted, so clear it first.
+        String changed = postJson("/api/auth/password", body(
+                "currentPassword", PASSWORD, "newPassword", NEW_PASSWORD), teacherToken)
+                .body();
+        teacherToken = JSON.readTree(changed).get("accessToken").asString();
+        assertProblem(get("/api/auth/publishers/me", teacherToken), 403, "");
+
+        String learnerEmail = unique("own-profile-learner") + "@example.local";
+        register(learnerEmail, "Learner Own Profile");
+        assertProblem(get("/api/auth/publishers/me", tokenOf(login(learnerEmail, PASSWORD))),
+                403, "");
+    }
+
     // -------------------------------------------------------------------------- images
 
     @Test

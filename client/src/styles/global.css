@@ -122,13 +122,13 @@ body[arco-theme='dark'] .sanaa-logo {
 
 .sanaa-caption {
   display: block;
-  color: var(--color-text-3);
+  color: var(--color-text-2);
   font-size: 12px;
   line-height: 1.5;
 }
 
 .sanaa-muted {
-  color: var(--color-text-3);
+  color: var(--color-text-2);
   font-size: 13px;
 }
 
@@ -477,7 +477,7 @@ body[arco-theme='dark'] .sanaa-header .arco-btn-text:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-text-3);
+  color: var(--color-text-2);
 }
 
 .sanaa-footer__name {
@@ -487,8 +487,14 @@ body[arco-theme='dark'] .sanaa-header .arco-btn-text:hover {
   letter-spacing: 0.08em;
 }
 
+.sanaa-footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
 .sanaa-footer__link {
-  color: var(--color-text-3);
+  color: var(--color-text-2);
   font-size: 13px;
   text-decoration: none;
 }
@@ -1006,6 +1012,12 @@ body[arco-theme='dark'] .sanaa-conflict__icon {
   max-width: 560px;
 }
 
+.sanaa-result-title {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+
 /* --------------------------------------------------------------- catalogue */
 
 .sanaa-course-grid {
@@ -1024,19 +1036,43 @@ body[arco-theme='dark'] .sanaa-conflict__icon {
 
 .sanaa-course-card {
   height: 100%;
+  overflow: hidden;
 }
 
 .sanaa-course-card > .arco-card-body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  padding: 0;
 }
 
-.sanaa-course-card__head {
+.sanaa-course-card .sanaa-cover--card {
+  margin-bottom: 0;
+  border-radius: 0;
+}
+
+.sanaa-course-card__body {
   display: flex;
-  align-items: flex-start;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 16px;
+}
+
+.sanaa-course-card__meta {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.sanaa-course-card__publisher {
+  overflow: hidden;
+  color: var(--color-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sanaa-course-card__title {
@@ -1045,22 +1081,89 @@ body[arco-theme='dark'] .sanaa-conflict__icon {
   overflow: hidden;
   color: var(--color-text-1);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
-.sanaa-course-card__price {
+.sanaa-course-card__instructor {
+  color: var(--color-text-2);
+  font-size: 13px;
+}
+
+.sanaa-course-card__rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-2);
+  font-size: 13px;
+}
+
+.sanaa-course-card__rating .arco-icon {
+  color: rgb(var(--gold-8));
+}
+
+/* gold-6 is a fill in light mode (1.70:1 on white); step 8 is the readable
+   star tint. The dark palette already has a light step 6. */
+body[arco-theme='dark'] .sanaa-course-card__rating .arco-icon {
+  color: rgb(var(--gold-6));
+}
+
+.sanaa-course-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: 10px;
+}
+
+.sanaa-course-card__level {
+  color: var(--color-text-2);
+  font-size: 12px;
+  text-transform: none;
+}
+
+/* ------------------------------------------------------------------ prices */
+
+.sanaa-price-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sanaa-price {
+  margin: 0;
   color: rgb(var(--primary-6));
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.sanaa-price-group--detail .sanaa-price {
+  font-size: 28px;
+}
+
+.sanaa-price--free {
+  color: rgb(var(--green-8));
   font-weight: 600;
 }
 
-body[arco-theme='dark'] .sanaa-course-card__price {
+.sanaa-price__original {
+  color: var(--color-text-2);
+  font-size: 12px;
+  text-decoration: line-through;
+}
+
+/* Step 6 is a fill in the dark palette; step 8 is the readable tint. */
+body[arco-theme='dark'] .sanaa-price {
   color: rgb(var(--primary-8));
+}
+
+body[arco-theme='dark'] .sanaa-price--free {
+  color: rgb(var(--green-8));
 }
 
 .sanaa-pagination {
@@ -1090,9 +1193,7 @@ body[arco-theme='dark'] .sanaa-course-card__price {
   justify-content: center;
   overflow: hidden;
   border-radius: var(--border-radius-medium);
-  background:
-    radial-gradient(circle at 18% 18%, rgba(var(--primary-4), 0.85), transparent 55%),
-    linear-gradient(135deg, rgb(var(--primary-6)) 0%, rgb(var(--primary-8)) 100%);
+  background: linear-gradient(135deg, var(--sanaa-cover-from, rgb(var(--primary-1))) 0%, var(--sanaa-cover-to, rgb(var(--primary-3))) 100%);
 }
 
 .sanaa-cover--card {
@@ -1107,12 +1208,11 @@ body[arco-theme='dark'] .sanaa-course-card__price {
 }
 
 .sanaa-cover__initials {
-  color: var(--color-bg-white);
+  color: var(--sanaa-cover-ink, rgb(var(--primary-8)));
   font-size: 38px;
   font-weight: 600;
   letter-spacing: 0.06em;
   line-height: 1;
-  opacity: 0.95;
 }
 
 .sanaa-cover--detail .sanaa-cover__initials {
@@ -1150,19 +1250,20 @@ body[arco-theme='dark'] .sanaa-course-card__price {
 
 .sanaa-detail-aside {
   position: sticky;
-  top: 24px;
+  top: 88px;
 }
 
-.sanaa-price {
+.sanaa-detail-mobile-price {
+  margin: 24px 0 32px;
+}
+
+.sanaa-detail-mobile-price .sanaa-detail-aside {
+  position: static;
+}
+
+.sanaa-detail-aside .sanaa-price-group,
+.sanaa-detail-aside .sanaa-price {
   margin: 4px 0 16px;
-  color: rgb(var(--primary-6));
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-body[arco-theme='dark'] .sanaa-price {
-  color: rgb(var(--primary-8));
 }
 
 .sanaa-detail-aside__action {
@@ -1741,4 +1842,452 @@ body[arco-theme='dark']
   .sanaa-card {
     transition: none;
   }
+}
+
+/* ------------------------------------------------------ marketplace v2 */
+
+.sanaa-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sanaa-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sanaa-home > section,
+.sanaa-page > section {
+  margin-top: 40px;
+}
+
+.sanaa-hero-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 620px;
+  margin-top: 24px;
+}
+
+.sanaa-hero-search .arco-input-wrapper {
+  flex: 1;
+}
+
+.sanaa-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sanaa-category-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 18px;
+  color: inherit;
+  text-decoration: none;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--border-radius-medium);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.sanaa-category-card:hover {
+  background: var(--color-fill-1);
+  border-color: rgb(var(--primary-6));
+}
+
+.sanaa-category-card__name {
+  flex: 1;
+  color: var(--color-text-1);
+  font-weight: 600;
+}
+
+.sanaa-category-card__count {
+  color: var(--color-text-2);
+  font-size: 12px;
+}
+
+.sanaa-category-card__arrow {
+  color: rgb(var(--primary-6));
+}
+
+body[arco-theme='dark'] .sanaa-category-card__arrow {
+  color: rgb(var(--primary-8));
+}
+
+.sanaa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sanaa-search-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 720px;
+  margin: 16px 0 28px;
+}
+
+.sanaa-catalogue {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.sanaa-catalogue__aside {
+  position: sticky;
+  top: 88px;
+}
+
+.sanaa-catalogue__results {
+  min-width: 0;
+}
+
+/* Cards need enough width for a French title, the creator tag and the price.
+   The catalogue has a filter column and creator profiles can be narrow, so a
+   fixed four-column grid made both views unnecessarily cramped. */
+.sanaa-catalogue__results .sanaa-course-grid,
+.sanaa-creator-courses .sanaa-course-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.sanaa-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  margin-bottom: 12px;
+}
+
+.sanaa-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sanaa-filter-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-2);
+  cursor: pointer;
+}
+
+.sanaa-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.sanaa-resume__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sanaa-resume__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  color: inherit;
+  text-decoration: none;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--border-radius-medium);
+}
+
+.sanaa-resume__item:hover {
+  border-color: rgb(var(--primary-6));
+}
+
+.sanaa-resume__item .sanaa-cover {
+  width: 64px;
+  height: 64px;
+  margin: 0;
+  border-radius: var(--border-radius-small);
+}
+
+.sanaa-resume__item .sanaa-cover__initials {
+  font-size: 20px;
+}
+
+.sanaa-resume__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sanaa-resume__title {
+  overflow: hidden;
+  color: var(--color-text-1);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sanaa-detail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+
+.sanaa-detail-aside__students {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-2);
+}
+
+.sanaa-detail-aside__primary {
+  margin: 20px 0 12px;
+}
+
+.sanaa-reviews,
+.sanaa-review-form,
+.sanaa-creator-courses {
+  margin-top: 40px;
+}
+
+.sanaa-reviews__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sanaa-reviews__average {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-1);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.sanaa-reviews__average .arco-icon {
+  color: rgb(var(--gold-8));
+}
+
+body[arco-theme='dark'] .sanaa-reviews__average .arco-icon {
+  color: rgb(var(--gold-6));
+}
+
+.sanaa-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0;
+  margin: 16px 0 0;
+  list-style: none;
+}
+
+.sanaa-review {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border-2);
+}
+
+.sanaa-review__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.sanaa-review__author {
+  color: var(--color-text-1);
+  font-weight: 600;
+}
+
+.sanaa-review__rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-2);
+}
+
+.sanaa-review__rating .arco-icon {
+  color: rgb(var(--gold-8));
+}
+
+body[arco-theme='dark'] .sanaa-review__rating .arco-icon {
+  color: rgb(var(--gold-6));
+}
+
+.sanaa-review__comment {
+  white-space: pre-line;
+}
+
+.sanaa-review__reply {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--color-fill-1);
+  border-left: 2px solid rgb(var(--primary-6));
+  border-radius: var(--border-radius-small);
+}
+
+.sanaa-review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--border-radius-large);
+}
+
+.sanaa-enrollment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sanaa-enrollment > .arco-card-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.sanaa-enrollment .sanaa-cover {
+  width: 96px;
+  height: 64px;
+  margin: 0;
+  border-radius: var(--border-radius-small);
+}
+
+.sanaa-enrollment .sanaa-cover__initials {
+  font-size: 20px;
+}
+
+.sanaa-enrollment__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sanaa-enrollment__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sanaa-empty__title {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-text-1);
+  font-size: 16px;
+}
+
+.sanaa-empty .sanaa-caption {
+  display: block;
+}
+
+.sanaa-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.sanaa-icon-muted {
+  color: var(--color-text-3);
+}
+
+@media (max-width: 899px) {
+  .sanaa-catalogue {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .sanaa-catalogue__aside {
+    position: static;
+  }
+}
+
+@media (max-width: 767px) {
+  .sanaa-enrollment > .arco-card-body {
+    flex-wrap: wrap;
+  }
+
+  .sanaa-enrollment .sanaa-cover {
+    width: 100%;
+    height: 80px;
+  }
+
+  .sanaa-hero-search {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sanaa-section-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .sanaa-review-form {
+    padding: 18px;
+  }
+}
+
+/* --------------------------------------------------------- tag contrast */
+
+/* Arco paints the preset tag text with step 6 on its step-1 background.
+   Measured light: red 3.25:1, green 2.63:1, gold 1.70:1, all below WCAG AA for
+   12 px text. Step 7/8 variants pass (see docs/adr/005-frontend.md). Dark mode
+   keeps step 6 for red and arcoblue; green needs step 7. */
+.arco-tag-checked.arco-tag-red {
+  color: rgb(var(--red-7));
+}
+
+.arco-tag-checked.arco-tag-green {
+  color: rgb(var(--green-8));
+}
+
+.arco-tag-checked.arco-tag-gold {
+  color: rgb(var(--orange-8));
+}
+
+body[arco-theme='dark'] .arco-tag-checked.arco-tag-red {
+  color: rgb(var(--red-6));
+}
+
+body[arco-theme='dark'] .arco-tag-checked.arco-tag-green {
+  color: rgb(var(--green-7));
+}
+
+body[arco-theme='dark'] .arco-tag-checked.arco-tag-gold {
+  color: rgb(var(--gold-8));
 }

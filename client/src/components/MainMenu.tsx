@@ -15,27 +15,34 @@ export interface NavItem {
 }
 
 /**
- * The role menu. Course, payment and catalogue routes stay out of every menu
- * until the marketplace tasks, so a role only sees the routes it can use.
- * The team entry exists only for an ORGANIZATION administrator.
+ * The role menu. The public catalogue and the learner area are open to every
+ * role that can enroll; the platform administrator never learns, so it has no
+ * "Mes cours" entry. The team entry exists only for an ORGANIZATION
+ * administrator. Payment pages stay out of every menu.
  */
 export function navItemsForRole(role: Role, tenantType?: PublisherType | null): NavItem[] {
   switch (role) {
     case 'STUDENT':
       return [
         { key: 'home', label: fr.nav.home, path: '/' },
+        { key: 'courses', label: fr.nav.catalogue, path: '/courses' },
+        { key: 'learn', label: fr.nav.learn, path: '/learn' },
         { key: 'me', label: fr.nav.me, path: '/me' },
         { key: 'become-creator', label: fr.nav.becomeCreator, path: '/become-creator' },
       ];
     case 'INSTRUCTOR':
       return [
         { key: 'home', label: fr.nav.home, path: '/' },
+        { key: 'courses', label: fr.nav.catalogue, path: '/courses' },
+        { key: 'learn', label: fr.nav.learn, path: '/learn' },
         { key: 'me', label: fr.nav.me, path: '/me' },
         { key: 'studio-profile', label: fr.nav.studioProfile, path: '/studio/profile' },
       ];
     case 'TENANT_ADMIN':
       return [
         { key: 'home', label: fr.nav.home, path: '/' },
+        { key: 'courses', label: fr.nav.catalogue, path: '/courses' },
+        { key: 'learn', label: fr.nav.learn, path: '/learn' },
         { key: 'me', label: fr.nav.me, path: '/me' },
         { key: 'studio-profile', label: fr.nav.studioProfile, path: '/studio/profile' },
         ...(tenantType === 'ORGANIZATION'
@@ -45,6 +52,7 @@ export function navItemsForRole(role: Role, tenantType?: PublisherType | null): 
     case 'SUPER_ADMIN':
       return [
         { key: 'home', label: fr.nav.home, path: '/' },
+        { key: 'courses', label: fr.nav.catalogue, path: '/courses' },
         { key: 'me', label: fr.nav.me, path: '/me' },
         { key: 'admin', label: fr.nav.admin, path: '/admin' },
       ];
@@ -53,8 +61,15 @@ export function navItemsForRole(role: Role, tenantType?: PublisherType | null): 
   }
 }
 
+/** Anonymous visitors get the public catalogue entries. */
 export function navItemsForUser(user: MeResponse | null): NavItem[] {
-  return user ? navItemsForRole(user.role, user.tenantType) : [];
+  if (user) {
+    return navItemsForRole(user.role, user.tenantType);
+  }
+  return [
+    { key: 'home', label: fr.nav.home, path: '/' },
+    { key: 'courses', label: fr.nav.catalogue, path: '/courses' },
+  ];
 }
 
 /**

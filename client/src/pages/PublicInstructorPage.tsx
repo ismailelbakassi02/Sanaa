@@ -3,7 +3,9 @@ import { IconLink } from '@arco-design/web-react/icon';
 import { Link, useParams } from 'react-router-dom';
 
 import { publicImageUrl } from '../api/profile';
+import { CreatorCourses } from '../components/CreatorCourses';
 import { usePublicInstructor } from '../hooks/publishers';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { fr } from '../i18n/fr';
 import { safeHref } from '../lib/url';
 
@@ -19,6 +21,7 @@ export function PublicInstructorPage() {
   const parsed = Number(id);
   const userId = Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   const query = usePublicInstructor(userId);
+  useDocumentTitle(query.data?.fullName);
 
   if (userId === null) {
     return (
@@ -97,6 +100,16 @@ export function PublicInstructorPage() {
           <p className="sanaa-text sanaa-prose-text">{instructor.bio}</p>
         </Card>
       ) : null}
+
+      <CreatorCourses
+        title={fr.publicInstructor.coursesTitle}
+        lead={fr.publicInstructor.coursesLead}
+        empty={fr.publicInstructor.emptyCourses}
+        matches={(course) =>
+          course.instructorName === instructor.fullName &&
+          course.publisherSlug === instructor.publisherSlug
+        }
+      />
 
       {links.length > 0 ? (
         <section className="sanaa-public__links" aria-label={fr.publicInstructor.linksTitle}>
